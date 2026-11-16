@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Musik 2.0 — Персональная волна</title>
+  <link rel="icon" type="image/svg+xml" href="static/favicon.svg">
+  <meta http-equiv="refresh" content="0; url=static/">
+  <script>
+    var target = "static/" + window.location.search + window.location.hash;
+    window.location.replace(target);
+  </script>
+  <style>
+    body {
+      background-color: #0c0d12;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+    }
+    .loader {
+      display: flex;
+      align-items: flex-end;
+      gap: 6px;
+      height: 36px;
+      margin-bottom: 16px;
+    }
+    .bar {
+      width: 6px;
+      background: #1db954;
+      border-radius: 6px;
+      box-shadow: 0 0 12px rgba(29, 185, 84, 0.7);
+      animation: bounce 1.1s infinite ease-in-out alternate;
+    }
+    .b1 { height: 30%; animation-delay: 0.1s; }
+    .b2 { height: 100%; animation-delay: 0.35s; }
+    .b3 { height: 50%; animation-delay: 0.2s; }
+    .b4 { height: 80%; animation-delay: 0.45s; }
+    @keyframes bounce {
+      0% { transform: scaleY(0.3); }
+      100% { transform: scaleY(1); }
+    }
+    a { color: #1db954; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="loader">
+    <span class="bar b1"></span>
+    <span class="bar b2"></span>
+    <span class="bar b3"></span>
+    <span class="bar b4"></span>
+  </div>
+  <p>Запуск Musik... Если переход не произошел, <a href="static/">нажмите здесь</a>.</p>
+</body>
+</html>
