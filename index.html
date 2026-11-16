@@ -1,0 +1,633 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Musik — Мой поток, персональная волна и стриминг</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="icon" type="image/jpeg" href="/static/logo.jpg" />
+</head>
+<body>
+  <div id="app">
+    <!-- LEFT SIDEBAR -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon" id="logoAnimatedWave" title="Musik WAVE">
+          <span class="bar bar-1"></span>
+          <span class="bar bar-2"></span>
+          <span class="bar bar-3"></span>
+          <span class="bar bar-4"></span>
+        </div>
+        <div class="logo-text">
+          <span class="brand">Musik</span>
+          <span class="badge">WAVE</span>
+        </div>
+      </div>
+
+      <!-- USER PROFILE SNIPPET -->
+      <div class="user-card" id="userCard">
+        <div class="user-avatar" id="userAvatar">?</div>
+        <div class="user-info">
+          <div class="user-name" id="userName">Гость</div>
+          <div class="user-status" id="userStatus">Синхронизация выкл.</div>
+        </div>
+        <button class="user-action-btn" id="userActionBtn" title="Войти в аккаунт">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
+        </button>
+      </div>
+
+      <nav class="nav-menu">
+        <button class="nav-item nav-wave active" data-view="wave">
+          <div class="wave-icon-wrap">
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+            <span class="wave-bar"></span>
+          </div>
+          <span>Мой поток</span>
+          <span class="badge-live">LIVE</span>
+        </button>
+
+        <button class="nav-item" data-view="home">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          Главная
+        </button>
+
+        <button class="nav-item" data-view="charts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          Топ Чарты
+        </button>
+
+        <button class="nav-item" data-view="favorites">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>
+          Любимые треки
+          <span class="fav-count-pill" id="favCountPill">0</span>
+        </button>
+
+        <button class="nav-item" data-view="dislikes">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zm7-13h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/></svg>
+          Скрытые
+          <span class="fav-count-pill dislike-pill" id="dislikeCountPill">0</span>
+        </button>
+
+        <button class="nav-item nav-import" id="sidebarImportBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Импорт по ссылке
+        </button>
+
+        <button class="nav-item nav-settings" id="sidebarSettingsBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          Настройки и Офлайн
+        </button>
+      </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <div class="sidebar-section-title">ЖАНРЫ И НАСТРОЕНИЕ</div>
+      <div class="genre-list">
+        <button class="genre-item" data-genre="Rock">🎸 Рок & Альтернатива</button>
+        <button class="genre-item" data-genre="Synthwave">🌆 Synthwave & Retrowave</button>
+        <button class="genre-item" data-genre="Hip-Hop">🎤 Хип-Хоп & Рэп</button>
+        <button class="genre-item" data-genre="Electronic">⚡ Электроника & EDM</button>
+        <button class="genre-item" data-genre="Lofi">☕ Lo-Fi Chill Beats</button>
+        <button class="genre-item" data-genre="Pop">✨ Современный Поп</button>
+        <button class="genre-item" data-genre="Classical">🎻 Неоклассика & Саундтреки</button>
+      </div>
+
+      <div class="sidebar-footer">
+        <div class="status-indicator" title="Каждый трек обеспечен 4 источниками: YouTube Music HQ, YouTube Video, Яндекс.Музыка, Spotify">
+          <span class="dot"></span> 4 медиа-потока HQ (1 трек на 4 потока)
+        </div>
+      </div>
+    </aside>
+
+    <!-- MAIN CONTENT AREA -->
+    <main class="main-content">
+      <!-- TOP BAR -->
+      <header class="topbar">
+        <div class="search-container">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="text" id="searchInput" placeholder="Поиск треков, артистов, альбомов... (Нажмите / для фокуса)" autocomplete="off" />
+          <button id="searchClearBtn" class="clear-btn hidden">&times;</button>
+        </div>
+
+        <div class="topbar-actions">
+          <button id="topbarImportBtn" class="btn btn-secondary btn-sm" title="Импортировать плейлист по ссылке">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Импорт ссылки
+          </button>
+
+          <div class="country-selector">
+            <span class="label">Страна:</span>
+            <select id="countrySelect">
+              <option value="ru" selected>🇷🇺 Россия</option>
+              <option value="us">🇺🇸 Мир / США</option>
+              <option value="gb">🇬🇧 Великобритания</option>
+              <option value="de">🇩🇪 Германия</option>
+              <option value="fr">🇫🇷 Франция</option>
+              <option value="jp">🇯🇵 Япония</option>
+            </select>
+          </div>
+
+          <button id="quickLyricsBtn" class="icon-btn" title="Караоке / Текст песни (L)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+          </button>
+
+          <button id="topbarSettingsBtn" class="icon-btn" title="Настройки и Офлайн">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <!-- SCROLLABLE BODY -->
+      <div class="scroll-container" id="scrollContainer">
+        
+        <!-- OFFLINE STATUS BANNER (shown when offline) -->
+        <div id="offlineBanner" class="offline-banner hidden">
+          <div class="offline-banner-content">
+            <span class="offline-icon">📶</span>
+            <div class="offline-banner-text">
+              <strong>Офлайн-режим:</strong> <span id="offlineBannerMessage">Буфер исчерпан. Играют ваши сохранённые любимые песни.</span>
+            </div>
+          </div>
+          <button id="offlineBannerDismissBtn" class="offline-banner-close" title="Скрыть">&times;</button>
+        </div>
+        
+        <!-- ==========================================
+             1. "МОЙ ПОТОК" (МОЯ ВОЛНА) VIEW
+             ========================================== -->
+        <section id="waveView" class="view-section">
+          <!-- WAVE HERO CARD -->
+          <div class="wave-hero-card">
+            <div class="wave-hero-bg">
+              <div class="wave-orb orb-1"></div>
+              <div class="wave-orb orb-2"></div>
+              <div class="wave-orb orb-3"></div>
+            </div>
+
+            <div class="wave-hero-content">
+              <div class="wave-badge-live">
+                <span class="pulse-dot"></span>
+                АЛГОРИТМИЧЕСКИЙ ПОТОК
+              </div>
+
+              <h1 class="wave-title">🌊 Мой поток</h1>
+              <p class="wave-subtitle">
+                Бесконечный персональный поток как «Моя волна» в Яндекс.Музыке. Вычисляет идеальные треки для вас, адаптируясь под лайки, дизлайки и пропуски в реальном времени.
+              </p>
+
+              <!-- WAVE SETTINGS / MODES -->
+              <div class="wave-modes-bar">
+                <span class="mode-label">Настройка потока:</span>
+                <div class="wave-chips">
+                  <button class="wave-chip active" data-mode="default">🌊 Всё подряд (Баланс)</button>
+                  <button class="wave-chip" data-mode="energy">⚡ Энергичное</button>
+                  <button class="wave-chip" data-mode="chill">☕ Спокойное</button>
+                  <button class="wave-chip" data-mode="favorites">❤️ Только любимое</button>
+                  <button class="wave-chip" data-mode="discover">🔍 Незнакомое</button>
+                </div>
+              </div>
+
+              <!-- WAVE CONTROLS -->
+              <div class="wave-action-row">
+                <button class="btn btn-primary btn-lg" id="startWaveBtn">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <span id="startWaveBtnText">Включить Мой поток</span>
+                </button>
+                <button class="btn btn-secondary" id="refreshWaveBtn" title="Обновить рекомендации">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+                  Новая подборка
+                </button>
+              </div>
+
+              <!-- WAVE STATS SUMMARY -->
+              <div class="wave-stats" id="waveStatsBar">
+                <span class="stat-item" id="waveLikesCount">❤️ Лайков: 0</span>
+                <span class="stat-divider">•</span>
+                <span class="stat-item" id="waveDislikesCount">👎 Дизлайков: 0</span>
+                <span class="stat-divider">•</span>
+                <span class="stat-item" id="waveTopGenres">Жанры: Pop, Rock</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- WAVE UPCOMING TRACKS SECTION -->
+          <div class="section-header">
+            <h2>🎵 Сейчас в вашем потоке</h2>
+            <span class="subtext">Треки непрерывно обновляются по ходу прослушивания</span>
+          </div>
+          <div class="track-list" id="waveTrackList">
+            <!-- Dynamic wave tracks -->
+          </div>
+        </section>
+
+        <!-- ==========================================
+             2. HOME / TRENDING VIEW
+             ========================================== -->
+        <section id="homeView" class="view-section hidden">
+          <!-- HERO BANNER -->
+          <div class="hero-banner">
+            <div class="hero-overlay"></div>
+            <div class="hero-content">
+              <span class="hero-tag">🎵 ТВОЙ СТРИМИНГ БЕЗ ОГРАНИЧЕНИЙ</span>
+              <h1 id="heroTitle">Музыка, которая слушает вас</h1>
+              <p>Персональный алгоритмический поток, импорт плейлистов из Яндекс.Музыки и Spotify с авто-лайками, синхронизация между всеми вашими устройствами.</p>
+              <div class="hero-buttons">
+                <button class="btn btn-primary" id="heroWaveBtn">
+                  <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  Запустить Мой поток
+                </button>
+                <button class="btn btn-secondary" id="heroPlayBtn">
+                  🔥 Топ-чарт недели
+                </button>
+                <button class="btn btn-outline" id="heroImportBtn">
+                  📥 Импорт плейлиста
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- TRENDING SECTION -->
+          <div class="section-header">
+            <h2>🔥 В тренде прямо сейчас</h2>
+            <span class="subtext">Самые популярные композиции недели</span>
+          </div>
+          <div class="tracks-grid" id="trendingGrid">
+            <!-- Dynamic Cards -->
+          </div>
+        </section>
+
+        <!-- ==========================================
+             3. SEARCH RESULTS VIEW
+             ========================================== -->
+        <section id="searchView" class="view-section hidden">
+          <div class="section-header">
+            <h2>Результаты поиска для: <span id="searchQueryLabel"></span></h2>
+            <span class="subtext" id="searchResultsCount">0 треков найдено</span>
+          </div>
+          <div class="track-list" id="searchTrackList">
+            <!-- Search items -->
+          </div>
+        </section>
+
+        <!-- ==========================================
+             4. FAVORITES VIEW
+             ========================================== -->
+        <section id="favoritesView" class="view-section hidden">
+          <div class="section-header flex-header">
+            <div>
+              <h2>❤️ Любимые треки</h2>
+              <span class="subtext">Все понравившиеся треки и автоматически добавленные из импортированных плейлистов</span>
+            </div>
+            <div class="header-action-group">
+              <button class="btn btn-secondary btn-sm" id="favsDownloadAllQuickBtn" title="Скачать все любимые для прослушивания без интернета">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 15px; height: 15px; margin-right: 4px;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Скачать в память
+              </button>
+              <button class="btn btn-primary btn-sm" id="playAllFavsBtn">
+                <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                Слушать все
+              </button>
+            </div>
+          </div>
+          <div class="track-list" id="favoritesTrackList">
+            <!-- Favorites items -->
+          </div>
+        </section>
+
+        <!-- ==========================================
+             5. DISLIKES VIEW
+             ========================================== -->
+        <section id="dislikesView" class="view-section hidden">
+          <div class="section-header">
+            <h2>👎 Скрытые треки (Дизлайки)</h2>
+            <span class="subtext">Эти треки исключены из вашего потока и никогда не будут рекомендованы</span>
+          </div>
+          <div class="track-list" id="dislikesTrackList">
+            <!-- Disliked items -->
+          </div>
+        </section>
+
+      </div>
+    </main>
+
+    <!-- QUEUE DRAWER -->
+    <div id="queueDrawer" class="queue-drawer">
+      <div class="queue-header">
+        <h3>Очередь воспроизведения (<span id="queueCount">0</span>)</h3>
+        <button id="clearQueueBtn" class="btn-text">Очистить</button>
+        <button id="closeQueueBtn" class="close-btn">&times;</button>
+      </div>
+      <div class="queue-content" id="queueList">
+        <!-- Queued items -->
+      </div>
+    </div>
+
+    <!-- FULLSCREEN LYRICS (KARAOKE) OVERLAY -->
+    <div id="lyricsOverlay" class="lyrics-overlay hidden">
+      <div class="lyrics-bg" id="lyricsBg"></div>
+      <div class="lyrics-container">
+        <header class="lyrics-header">
+          <div class="lyrics-track-info">
+            <img id="lyricsTrackCover" src="" alt="Cover" />
+            <div>
+              <h2 id="lyricsTrackTitle">Название трека</h2>
+              <p id="lyricsTrackArtist">Артист</p>
+            </div>
+          </div>
+          <button id="closeLyricsBtn" class="close-btn">&times;</button>
+        </header>
+        <div class="lyrics-body" id="lyricsBody">
+          <div class="lyrics-loading">Загрузка текста...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- BOTTOM PLAYER BAR -->
+    <footer class="player-bar">
+      <!-- CURRENT TRACK INFO -->
+      <div class="player-left">
+        <div class="track-cover-wrapper" id="playerCoverWrapper" title="Открыть текст песни">
+          <img id="playerCover" src="https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop" alt="Cover" />
+          <div class="cover-hover-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/></svg>
+          </div>
+        </div>
+        <div class="player-meta">
+          <div id="playerTitle" class="player-title">Выберите трек или запустите Мой поток</div>
+          <div id="playerArtist" class="player-artist">—</div>
+        </div>
+
+        <!-- LIKE & DISLIKE BUTTONS (DISLIKE LEFT, LIKE RIGHT) -->
+        <div class="player-feedback-btns">
+          <button id="playerDislikeBtn" class="icon-btn dislike-btn" title="Не нравится (скрыть и перелистнуть)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+              <line x1="2" y1="2" x2="22" y2="22" stroke-width="2.2"/>
+            </svg>
+          </button>
+          <button id="playerLikeBtn" class="icon-btn like-btn" title="Мне нравится (добавить в любимые)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- MAIN CONTROLS & TIMELINE -->
+      <div class="player-center">
+        <div class="controls-row">
+          <button id="shuffleBtn" class="control-btn" title="Перемешать (S)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
+          </button>
+          <button id="prevBtn" class="control-btn" title="Предыдущий трек (J)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <button id="playBtn" class="control-btn play-circle" title="Воспроизведение / Пауза (Пробел)">
+            <svg class="play-icon" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg class="pause-icon hidden" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+            <div class="spinner hidden" id="playerSpinner"></div>
+          </button>
+          <button id="nextBtn" class="control-btn" title="Следующий трек (K)">
+            <svg viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19" stroke="currentColor" stroke-width="2"/></svg>
+          </button>
+          <button id="repeatBtn" class="control-btn" title="Повтор (R)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            <span class="repeat-one-indicator hidden">1</span>
+          </button>
+        </div>
+
+        <div class="timeline-row">
+          <span id="currentTime" class="time-label">0:00</span>
+          <div class="slider-wrapper" id="progressWrapper">
+            <div class="slider-track" id="progressTrack">
+              <div class="slider-buffer" id="progressBuffer"></div>
+              <div class="slider-fill" id="progressFill"></div>
+              <div class="slider-thumb" id="progressThumb"></div>
+            </div>
+          </div>
+          <span id="totalDuration" class="time-label">0:00</span>
+        </div>
+      </div>
+
+      <!-- RIGHT UTILITIES -->
+      <div class="player-right">
+        <button id="lyricsBtn" class="control-btn" title="Текст песни (L)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="22"/></svg>
+        </button>
+        <button id="queueBtn" class="control-btn" title="Очередь воспроизведения">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+          <span class="queue-badge hidden" id="queueBadge">0</span>
+        </button>
+        <div class="volume-container">
+          <button id="volumeBtn" class="control-btn" title="Звук (M)">
+            <svg id="volumeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          </button>
+          <div class="volume-slider-wrapper" id="volumeWrapper">
+            <div class="volume-track" id="volumeTrack">
+              <div class="volume-fill" id="volumeFill"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ==========================================
+         MODAL: AUTH (LOGIN / REGISTER)
+         ========================================== -->
+    <div id="authModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <div class="modal-tabs">
+            <button class="modal-tab active" id="tabLogin">Вход в аккаунт</button>
+            <button class="modal-tab" id="tabRegister">Регистрация</button>
+          </div>
+          <button class="close-btn" id="closeAuthModalBtn">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="modal-info-text">
+            Слушайте свои любимые треки и персональную волну с любого устройства (телефона, планшета, ПК) с мгновенной синхронизацией!
+          </p>
+
+          <form id="authForm">
+            <div class="form-group">
+              <label for="authUsername">Логин или Email</label>
+              <input type="text" id="authUsername" class="form-input" placeholder="denis" required autocomplete="username" />
+            </div>
+
+            <div class="form-group" id="regEmailGroup" style="display: none;">
+              <label for="authEmail">Email (необязательно)</label>
+              <input type="email" id="authEmail" class="form-input" placeholder="mail@example.com" autocomplete="email" />
+            </div>
+
+            <div class="form-group">
+              <label for="authPassword">Пароль</label>
+              <input type="password" id="authPassword" class="form-input" placeholder="••••••••" required autocomplete="current-password" />
+            </div>
+
+            <div class="form-error hidden" id="authErrorMsg"></div>
+
+            <button type="submit" class="btn btn-primary btn-block" id="authSubmitBtn">
+              Войти
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: IMPORT PLAYLIST
+         ========================================== -->
+    <div id="importModal" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3>📥 Импорт плейлиста или треков</h3>
+          <button class="close-btn" id="closeImportModalBtn">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <p class="modal-info-text">
+            Вставьте <strong>ссылку на плейлист или альбом</strong> (Spotify, YouTube Music, Apple Music, Яндекс.Музыка) либо <strong>скопированный список треков</strong>. Все треки <strong>автоматически добавятся в ваши «Любимые»</strong> и скорректируют «Мой поток»!
+          </p>
+
+          <div class="provider-badges">
+            <span class="provider-tag" title="Нажмите для вставки примера">🟢 Spotify</span>
+            <span class="provider-tag" title="Нажмите для вставки примера">🔴 YouTube Music</span>
+            <span class="provider-tag" title="Нажмите для вставки примера">🍎 Apple Music</span>
+            <span class="provider-tag" title="Нажмите для вставки примера">🎧 Яндекс Музыка</span>
+            <span class="provider-tag" title="Нажмите для вставки примера">📝 Список треков</span>
+          </div>
+
+          <div class="form-group">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label for="importUrlInput" style="margin-bottom: 0;">Ссылка на плейлист/альбом или список песен:</label>
+              <span id="importCounterBadge" class="subtext" style="color: #1db954; font-weight: 600;"></span>
+            </div>
+            <textarea id="importUrlInput" class="form-input form-textarea" placeholder="Вставьте ссылку на плейлист (Spotify / YouTube Music / Apple Music / Яндекс Музыка)&#10;ИЛИ просто вставьте список треков в любом виде:&#10;Minelli - Rampampam&#10;Imagine Dragons - Believer&#10;MACAN - ДИНАСТИЯ&#10;Queen - Bohemian Rhapsody"></textarea>
+          </div>
+
+          <div class="import-status-area hidden" id="importStatusArea">
+            <div class="spinner" id="importSpinner"></div>
+            <span id="importStatusText">Извлечение треков и автоматическая простановка лайков...</span>
+          </div>
+
+          <div class="import-result-card hidden" id="importResultCard">
+            <div class="result-icon">🎉</div>
+            <div class="result-text">
+              <h4 id="importResultTitle">Успешно импортировано!</h4>
+              <p id="importResultDesc">Все треки добавлены в Любимые</p>
+            </div>
+          </div>
+
+          <div class="modal-actions">
+            <button class="btn btn-secondary" id="cancelImportBtn">Отмена</button>
+            <button class="btn btn-primary" id="doImportBtn">
+              Импортировать и поставить лайки
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==========================================
+         MODAL: SETTINGS & OFFLINE CACHE
+         ========================================== -->
+    <div id="settingsModal" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3>⚙️ Настройки и Офлайн-режим</h3>
+          <button class="close-btn" id="closeSettingsModalBtn">&times;</button>
+        </div>
+
+        <div class="modal-body">
+          <!-- OFFLINE SECTION -->
+          <div class="settings-group">
+            <h4 class="settings-group-title">📥 Офлайн-режим и автоскачивание</h4>
+
+            <div class="setting-toggle-row">
+              <div class="setting-info">
+                <div class="setting-label">Автоматически скачивать любимые песни</div>
+                <div class="setting-desc">
+                  Все треки, которым вы ставите ❤️ или импортируете из плейлистов, автоматически скачиваются в память браузера (IndexedDB) для воспроизведения без интернета.
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="settingAutoDownloadToggle" checked />
+                <span class="slider round"></span>
+              </label>
+            </div>
+
+            <div class="setting-toggle-row">
+              <div class="setting-info">
+                <div class="setting-label">Предзагрузка на 5 песен вперёд</div>
+                <div class="setting-desc">
+                  Заранее кэширует следующие 5 композиций в очереди. Обеспечивает бесшовный мгновенный переход без пауз и позволяет продолжать прослушивание при внезапном отключении интернета.
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="settingPreloadToggle" checked />
+                <span class="slider round"></span>
+              </label>
+            </div>
+
+            <div class="storage-info-box">
+              <div class="storage-meta">
+                <div class="storage-stat">
+                  <span class="stat-title">Скачано любимых треков:</span>
+                  <strong id="offlineFavsCount">0</strong>
+                </div>
+                <div class="storage-stat">
+                  <span class="stat-title">Занятое место в кэше:</span>
+                  <strong id="offlineStorageSize">0 МБ</strong>
+                </div>
+              </div>
+              <div class="storage-actions">
+                <button class="btn btn-secondary btn-sm" id="downloadAllFavoritesBtn">
+                  ⬇️ Скачать все любимые сейчас (<span id="btnFavsTotalCount">0</span>)
+                </button>
+                <button class="btn btn-outline-danger btn-sm" id="clearStorageBtn">
+                  🗑️ Очистить кэш
+                </button>
+              </div>
+              <div id="downloadProgressBar" class="download-progress-wrap hidden">
+                <div class="download-progress-fill" id="downloadProgressFill" style="width: 0%"></div>
+                <span class="download-progress-label" id="downloadProgressLabel">0%</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- MULTI-SOURCE FALLBACK SECTION (YANDEX MUSIC & SPOTIFY) -->
+          <div class="settings-group" style="margin-top: 24px;">
+            <h4 class="settings-group-title">🎧 Мульти-источник стриминга (Яндекс.Музыка & Spotify)</h4>
+            <p class="modal-info-text">
+              Если нужной композиции нет на YouTube Music, плеер автоматически и бесшовно ищет и воспроизводит её через <strong>Яндекс.Музыку, Spotify и SoundCloud</strong>. Всё работает полностью автоматически «из коробки» <strong>без необходимости вводить токены или пароли</strong>.
+            </p>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px;">
+              <span class="provider-tag" style="color: #1db954; border-color: rgba(29, 185, 84, 0.4);">✓ YouTube Music HQ</span>
+              <span class="provider-tag" style="color: #ffcc00; border-color: rgba(255, 204, 0, 0.4);">✓ Яндекс.Музыка (Без токена)</span>
+              <span class="provider-tag" style="color: #1ed760; border-color: rgba(30, 215, 96, 0.4);">✓ Spotify Search & Match</span>
+              <span class="provider-tag" style="color: #ff5500; border-color: rgba(255, 85, 0, 0.4);">✓ SoundCloud HQ</span>
+            </div>
+          </div>
+
+          <div class="modal-actions" style="margin-top: 24px;">
+            <button class="btn btn-primary" id="saveSettingsCloseBtn">Готово</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HIDDEN AUDIO ELEMENT -->
+    <audio id="audioElement" preload="auto"></audio>
+
+    <!-- TOAST CONTAINER -->
+    <div id="toastContainer" class="toast-container"></div>
+  </div>
+
+  <script src="/static/offline_storage.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
