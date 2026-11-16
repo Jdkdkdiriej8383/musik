@@ -584,6 +584,10 @@ async def stream_audio(title: str, artist: str, request: Request):
     )
 
 
+# Serve root static files (for seamless relative paths)
+app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="root_static")
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print("=" * 60)

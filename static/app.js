@@ -12,6 +12,14 @@ class MusikApp {
     this.token = localStorage.getItem("musik_token") || null;
     this.currentUser = null;
 
+    // Remote Backend URL (for GitHub Pages hosting or custom API host)
+    this.apiBase = localStorage.getItem("musik_api_backend") || "";
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.has("api")) {
+      this.apiBase = urlParams.get("api").replace(/\/$/, "");
+      localStorage.setItem("musik_api_backend", this.apiBase);
+    }
+
     // Library State (Synced with Backend DB)
     this.favorites = [];
     this.dislikes = [];
@@ -183,6 +191,8 @@ class MusikApp {
       settingsModal: document.getElementById("settingsModal"),
       closeSettingsModalBtn: document.getElementById("closeSettingsModalBtn"),
       saveSettingsCloseBtn: document.getElementById("saveSettingsCloseBtn"),
+      apiBackendInput: document.getElementById("apiBackendInput"),
+      saveApiBackendBtn: document.getElementById("saveApiBackendBtn"),
       settingAutoDownloadToggle: document.getElementById("settingAutoDownloadToggle"),
       settingPreloadToggle: document.getElementById("settingPreloadToggle"),
       offlineFavsCount: document.getElementById("offlineFavsCount"),
@@ -248,7 +258,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch("/api/auth/me", {
+      const resp = await fetch(this.api("/api/auth/me"), {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
       const data = await resp.json();
@@ -274,6 +284,14 @@ class MusikApp {
         this.updateUserUI(this.currentUser);
       }
     }
+  }
+
+  // ==========================================
+  // API URL RESOLVER (FOR GITHUB PAGES & REMOTE BACKENDS)
+  // ==========================================
+  api(path) {
+    if (!path.startsWith("/")) path = "/" + path;
+    return `${this.apiBase}${path}`;
   }
 
   // ==========================================
@@ -355,7 +373,7 @@ class MusikApp {
   async syncLibraryFromBackend() {
     if (!this.token) return;
     try {
-      const resp = await fetch("/api/user/library", {
+      const resp = await fetch(this.api("/api/user/library"), {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
       if (resp.ok) {
@@ -450,7 +468,7 @@ class MusikApp {
     const password = this.dom.authPassword.value;
     const email = this.dom.authEmail.value.trim();
 
-    const endpoint = this.authMode === "login" ? "/api/auth/login" : "/api/auth/register";
+    const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
     const payload = this.authMode === "login"
       ? { login: username, password, device_name: "Web Device" }
       : { username, password, email: email || null, display_name: username };
@@ -495,7 +513,7 @@ class MusikApp {
   async logout() {
     if (this.token) {
       try {
-        await fetch("/api/auth/logout", {
+        await fetch(this.api("/api/auth/logout"), {
           method: "POST",
           headers: { "Authorization": `Bearer ${this.token}` }
         });
@@ -528,7 +546,7 @@ class MusikApp {
       if (this.dom.startWaveBtnText) {
         this.dom.startWaveBtnText.textContent = "Загрузка...";
       }
-      const resp = await fetch(`/api/stream/wave?mode=${mode}&limit=15&country=${this.dom.countrySelect.value}`, {
+      const resp = await fetch(this.api(`/api/stream/wave?mode=${mode}&limit=15&country=${this.dom.countrySelect.value}`), {
         headers
       });
       if (!resp.ok) {
@@ -590,7 +608,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch(`/api/stream/wave?mode=${this.waveMode}&limit=10&country=${this.dom.countrySelect.value}`, {
+      const resp = await fetch(this.api(`/api/stream/wave?mode=${this.waveMode}&limit=10&country=${this.dom.countrySelect.value}`), {
         headers
       });
       const data = await resp.json();
@@ -689,7 +707,7 @@ class MusikApp {
         headers["Authorization"] = `Bearer ${this.token}`;
       }
 
-      const resp = await fetch("/api/import/playlist", {
+      const resp = await fetch(this.api("/api/import/playlist"), {
         method: "POST",
         headers,
         body: JSON.stringify({ url: inputVal })
@@ -765,7 +783,7 @@ class MusikApp {
       this.favorites = this.favorites.filter(t => !this.isTrackMatch(t, track));
       if (this.token) {
         try {
-          await fetch(`/api/user/like/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`, {
+          await fetch(this.api(`/api/user/like/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${this.token}` }
           });
@@ -787,7 +805,7 @@ class MusikApp {
 
       if (this.token) {
         try {
-          await fetch("/api/user/like", {
+          await fetch(this.api("/api/user/like"), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -829,7 +847,7 @@ class MusikApp {
       this.dislikes = this.dislikes.filter(t => !this.isTrackMatch(t, track));
       if (this.token) {
         try {
-          await fetch(`/api/user/dislike/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`, {
+          await fetch(this.api(`/api/user/dislike/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`), {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${this.token}` }
           });
@@ -851,7 +869,7 @@ class MusikApp {
 
       if (this.token) {
         try {
-          await fetch("/api/user/dislike", {
+          await fetch(this.api("/api/user/dislike"), {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1093,7 +1111,7 @@ class MusikApp {
       this.audio.src = audioSrc;
     } else if (navigator.onLine) {
       // ONLINE STREAMING
-      const streamUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+      const streamUrl = this.api(`/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
       this.audio.src = streamUrl;
     } else {
       // NO NETWORK AND TRACK NOT PRELOADED -> OFFLINE FALLBACK!
@@ -1250,7 +1268,7 @@ class MusikApp {
   async recordHistory(track, listenedSeconds, skipped) {
     if (!this.token) return;
     try {
-      await fetch("/api/user/history", {
+      await fetch(this.api("/api/user/history"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1305,7 +1323,7 @@ class MusikApp {
     this.dom.lyricsBody.innerHTML = '<div class="lyrics-loading">Поиск текста песни...</div>';
 
     try {
-      const resp = await fetch(`/api/lyrics?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${track.duration || 0}`);
+      const resp = await fetch(this.api(`/api/lyrics?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${track.duration || 0}`));
       const data = await resp.json();
 
       if (data.syncedLyrics) {
@@ -1476,7 +1494,7 @@ class MusikApp {
   async loadTrending(country = "ru") {
     this.dom.trendingGrid.innerHTML = '<div class="lyrics-loading" style="grid-column: 1/-1;">Загрузка популярных треков...</div>';
     try {
-      const resp = await fetch(`/api/trending?country=${country}&limit=30`);
+      const resp = await fetch(this.api(`/api/trending?country=${country}&limit=30`));
       const data = await resp.json();
       this.renderTrendingGrid(data.results || []);
     } catch (e) {
@@ -1524,7 +1542,7 @@ class MusikApp {
     this.dom.searchTrackList.innerHTML = '<div class="lyrics-loading" style="padding: 40px 0;">Поиск треков в каталоге...</div>';
 
     try {
-      const resp = await fetch(`/api/search?q=${encodeURIComponent(query)}&limit=30`);
+      const resp = await fetch(this.api(`/api/search?q=${encodeURIComponent(query)}&limit=30`));
       const data = await resp.json();
       const results = data.results || [];
       this.dom.searchResultsCount.textContent = `${results.length} треков найдено`;
@@ -1914,6 +1932,19 @@ class MusikApp {
     if (this.dom.closeSettingsModalBtn) {
       this.dom.closeSettingsModalBtn.addEventListener("click", () => this.closeSettingsModal());
     }
+    if (this.dom.apiBackendInput) {
+      this.dom.apiBackendInput.value = this.apiBase;
+    }
+    if (this.dom.saveApiBackendBtn) {
+      this.dom.saveApiBackendBtn.addEventListener("click", () => {
+        const val = (this.dom.apiBackendInput.value || "").trim().replace(/\/$/, "");
+        this.apiBase = val;
+        localStorage.setItem("musik_api_backend", val);
+        this.showToast(val ? `🌐 Бэкенд подключен: ${val}` : "Используется текущий хост");
+        this.checkAuthAndSync();
+        this.loadWave(this.waveMode, false);
+      });
+    }
     if (this.dom.saveSettingsCloseBtn) {
       this.dom.saveSettingsCloseBtn.addEventListener("click", () => this.closeSettingsModal());
     }
@@ -2263,7 +2294,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch("/api/settings/yandex-token", {
+      const resp = await fetch(this.api("/api/settings/yandex-token"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token })
