@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css" />
-  <link rel="icon" type="image/jpeg" href="/static/logo.jpg" />
+  <link rel="stylesheet" href="style.css" />
+  <link rel="icon" type="image/jpeg" href="logo.jpg" />
 </head>
 <body>
   <div id="app">
@@ -613,6 +613,18 @@
             </div>
           </div>
 
+          <!-- BACKEND URL FOR GITHUB PAGES -->
+          <div class="settings-group" style="margin-top: 24px;">
+            <h4 class="settings-group-title">🌐 Адрес бэкенда (для GitHub Pages)</h4>
+            <p class="modal-info-text">
+              Если сайт открыт через <strong>GitHub Pages</strong>, укажите адрес вашего работающего сервера на Render (например: <code>https://musik-app.onrender.com</code>):
+            </p>
+            <div style="display: flex; gap: 8px; margin-top: 10px;">
+              <input type="text" id="apiBackendInput" class="form-input" style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff;" placeholder="https://ваш-сервер.onrender.com" />
+              <button class="btn btn-secondary btn-sm" id="saveApiBackendBtn">Сохранить</button>
+            </div>
+          </div>
+
           <div class="modal-actions" style="margin-top: 24px;">
             <button class="btn btn-primary" id="saveSettingsCloseBtn">Готово</button>
           </div>
@@ -627,7 +639,7 @@
     <div id="toastContainer" class="toast-container"></div>
   </div>
 
-  <script src="/static/offline_storage.js"></script>
-  <script src="/static/app.js"></script>
+  <script src="offline_storage.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
