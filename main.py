@@ -585,8 +585,9 @@ async def stream_audio(title: str, artist: str, request: Request):
 
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 8000))
     print("=" * 60)
     print("🎵 Musik 2.0 Server with Personal Wave & Multi-Device Auth")
-    print("🌐 Open http://localhost:8000 in your browser")
+    print(f"🌐 Server starting on http://0.0.0.0:{port}")
     print("=" * 60)
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)
