@@ -2277,8 +2277,19 @@ input:checked + .slider:before {
     padding: 12px 14px calc(var(--player-height) + var(--bottom-nav-height) + env(safe-area-inset-bottom, 12px) + 20px) 14px;
   }
 
-  .top-bar {
-    display: none; /* replaced by mobile top header and mobile search */
+  html, body {
+    width: 100%;
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+
+  .topbar {
+    display: none !important; /* replaced by mobile top header and mobile search */
+  }
+
+  .search-container {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   /* Trending and categories grids */
