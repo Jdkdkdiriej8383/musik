@@ -206,6 +206,41 @@ class MusikApp {
       yandexTokenInput: document.getElementById("yandexTokenInput"),
       saveYandexTokenBtn: document.getElementById("saveYandexTokenBtn"),
       favsDownloadAllQuickBtn: document.getElementById("favsDownloadAllQuickBtn"),
+
+      // Mobile Layout & Navigation
+      mobileTopHeader: document.getElementById("mobileTopHeader"),
+      mobileLogoBtn: document.getElementById("mobileLogoBtn"),
+      mobileSearchToggleBtn: document.getElementById("mobileSearchToggleBtn"),
+      mobileSettingsBtn: document.getElementById("mobileSettingsBtn"),
+      mobileUserAvatar: document.getElementById("mobileUserAvatar"),
+      mobileBottomNav: document.getElementById("mobileBottomNav"),
+      mobileFavCount: document.getElementById("mobileFavCount"),
+      mobileProfileNavBtn: document.getElementById("mobileProfileNavBtn"),
+
+      // Fullscreen Mobile Player
+      mobileFullPlayer: document.getElementById("mobileFullPlayer"),
+      closeFullPlayerBtn: document.getElementById("closeFullPlayerBtn"),
+      mPlayerQueueBtn: document.getElementById("mPlayerQueueBtn"),
+      mPlayerCover: document.getElementById("mPlayerCover"),
+      mPlayerTitle: document.getElementById("mPlayerTitle"),
+      mPlayerArtist: document.getElementById("mPlayerArtist"),
+      mLikeBtn: document.getElementById("mLikeBtn"),
+      mDislikeBtn: document.getElementById("mDislikeBtn"),
+      mProgressWrapper: document.getElementById("mProgressWrapper"),
+      mProgressTrack: document.getElementById("mProgressTrack"),
+      mProgressFill: document.getElementById("mProgressFill"),
+      mProgressThumb: document.getElementById("mProgressThumb"),
+      mCurrentTime: document.getElementById("mCurrentTime"),
+      mTotalDuration: document.getElementById("mTotalDuration"),
+      mShuffleBtn: document.getElementById("mShuffleBtn"),
+      mPrevBtn: document.getElementById("mPrevBtn"),
+      mPlayBtn: document.getElementById("mPlayBtn"),
+      mNextBtn: document.getElementById("mNextBtn"),
+      mRepeatBtn: document.getElementById("mRepeatBtn"),
+      mPlayIcon: document.querySelector(".m-play-icon"),
+      mPauseIcon: document.querySelector(".m-pause-icon"),
+      mLyricsBtn: document.getElementById("mLyricsBtn"),
+      mDownloadBtn: document.getElementById("mDownloadBtn"),
     };
 
     this.init();
@@ -257,29 +292,38 @@ class MusikApp {
       return;
     }
 
+    // Local standalone account (no remote backend needed)
+    if (this.token.startsWith("local_token_")) {
+      if (this.currentUser) this.updateUserUI(this.currentUser);
+      return;
+    }
+
+    if (!this.apiBase) return;
+
     try {
       const resp = await fetch(this.api("/api/auth/me"), {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
-      const data = await resp.json();
-
-      if (resp.ok && (data.authenticated || data.user)) {
-        const user = data.user || data;
-        this.currentUser = user;
-        localStorage.setItem("musik_user", JSON.stringify(user));
-        this.updateUserUI(user);
-        await this.syncLibraryFromBackend();
-      } else if (resp.status === 401) {
-        // Token explicitly revoked by server
-        this.token = null;
-        this.currentUser = null;
-        localStorage.removeItem("musik_token");
-        localStorage.removeItem("musik_user");
-        this.updateUserUI(null);
+      const contentType = resp.headers.get("content-type") || "";
+      if (contentType.includes("application/json")) {
+        const data = await resp.json();
+        if (resp.ok && (data.authenticated || data.user)) {
+          const user = data.user || data;
+          this.currentUser = user;
+          localStorage.setItem("musik_user", JSON.stringify(user));
+          this.updateUserUI(user);
+          await this.syncLibraryFromBackend();
+        } else if (resp.status === 401) {
+          // Token explicitly revoked by server
+          this.token = null;
+          this.currentUser = null;
+          localStorage.removeItem("musik_token");
+          localStorage.removeItem("musik_user");
+          this.updateUserUI(null);
+        }
       }
     } catch (e) {
       console.warn("Auth check network error:", e);
-      // Keep existing session on temporary network failure/offline
       if (this.currentUser) {
         this.updateUserUI(this.currentUser);
       }
@@ -410,8 +454,9 @@ class MusikApp {
     if (user) {
       const initial = (user.display_name || user.username || "U")[0].toUpperCase();
       this.dom.userAvatar.textContent = initial;
+      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.textContent = initial;
       this.dom.userName.textContent = user.display_name || user.username;
-      this.dom.userStatus.textContent = "Облачная синхронизация";
+      this.dom.userStatus.textContent = this.token && this.token.startsWith("local_token_") ? "Локальный профиль" : "Облачная синхронизация";
       this.dom.userStatus.style.color = "#1db954";
       this.dom.userActionBtn.title = "Выйти из аккаунта";
       this.dom.userActionBtn.innerHTML = `
@@ -419,6 +464,7 @@ class MusikApp {
       `;
     } else {
       this.dom.userAvatar.textContent = "?";
+      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.textContent = "?";
       this.dom.userName.textContent = "Гость";
       this.dom.userStatus.textContent = "Нажмите, чтобы войти";
       this.dom.userStatus.style.color = "var(--text-secondary)";
@@ -432,6 +478,7 @@ class MusikApp {
   updatePillCounts() {
     this.dom.favCountPill.textContent = this.favorites.length;
     this.dom.dislikeCountPill.textContent = this.dislikes.length;
+    if (this.dom.mobileFavCount) this.dom.mobileFavCount.textContent = this.favorites.length;
     this.dom.waveLikesCount.textContent = `❤️ Лайков: ${this.favorites.length}`;
     this.dom.waveDislikesCount.textContent = `👎 Дизлайков: ${this.dislikes.length}`;
   }
@@ -468,38 +515,130 @@ class MusikApp {
     const password = this.dom.authPassword.value;
     const email = this.dom.authEmail.value.trim();
 
-    const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
-    const payload = this.authMode === "login"
-      ? { login: username, password, device_name: "Web Device" }
-      : { username, password, email: email || null, display_name: username };
+    if (!username || !password) {
+      this.dom.authErrorMsg.textContent = "Заполните логин и пароль";
+      this.dom.authErrorMsg.classList.remove("hidden");
+      return;
+    }
 
-    try {
-      this.dom.authSubmitBtn.disabled = true;
-      this.dom.authSubmitBtn.textContent = "Обработка...";
+    this.dom.authSubmitBtn.disabled = true;
+    this.dom.authSubmitBtn.textContent = "Обработка...";
 
-      const resp = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const data = await resp.json();
-
-      if (!resp.ok) {
-        throw new Error(data.detail || "Ошибка авторизации");
+    // Standalone fallback: Store accounts directly in localStorage (works 100% on GitHub Pages without backend!)
+    const localAuthFallback = () => {
+      let localUsers = {};
+      try {
+        localUsers = JSON.parse(localStorage.getItem("musik_local_users") || "{}");
+      } catch (err) {
+        localUsers = {};
       }
 
-      // Success
-      this.token = data.token;
-      this.currentUser = data.user;
-      localStorage.setItem("musik_token", this.token);
-      localStorage.setItem("musik_user", JSON.stringify(data.user));
-      this.updateUserUI(data.user);
-      this.closeAuthModal();
-      this.showToast(`Добро пожаловать, ${data.user.display_name || data.user.username}!`);
+      const key = username.toLowerCase();
+      if (this.authMode === "register") {
+        if (localUsers[key]) {
+          throw new Error("Пользователь с таким именем уже существует");
+        }
+        const newUser = {
+          id: "local_" + Date.now(),
+          username: username,
+          display_name: username,
+          email: email || null,
+          password: password,
+          created_at: new Date().toISOString()
+        };
+        localUsers[key] = newUser;
+        localStorage.setItem("musik_local_users", JSON.stringify(localUsers));
 
-      // Sync backend library & update recommendations
-      await this.syncLibraryFromBackend();
-      this.loadWave(this.waveMode, false);
+        this.token = "local_token_" + newUser.id;
+        this.currentUser = newUser;
+        localStorage.setItem("musik_token", this.token);
+        localStorage.setItem("musik_user", JSON.stringify(newUser));
+        this.updateUserUI(newUser);
+        this.closeAuthModal();
+        this.showToast(`Регистрация успешна! Добро пожаловать, ${username}!`);
+        return true;
+      } else {
+        // Login
+        const existing = localUsers[key];
+        if (existing) {
+          if (existing.password && existing.password !== password) {
+            throw new Error("Неверный пароль");
+          }
+          this.token = "local_token_" + existing.id;
+          this.currentUser = existing;
+          localStorage.setItem("musik_token", this.token);
+          localStorage.setItem("musik_user", JSON.stringify(existing));
+          this.updateUserUI(existing);
+          this.closeAuthModal();
+          this.showToast(`С возвращением, ${existing.display_name || existing.username}!`);
+          return true;
+        } else {
+          // Direct auto-create for smooth single-click access
+          const newUser = {
+            id: "local_" + Date.now(),
+            username: username,
+            display_name: username,
+            email: email || null,
+            password: password,
+            created_at: new Date().toISOString()
+          };
+          localUsers[key] = newUser;
+          localStorage.setItem("musik_local_users", JSON.stringify(localUsers));
+          this.token = "local_token_" + newUser.id;
+          this.currentUser = newUser;
+          localStorage.setItem("musik_token", this.token);
+          localStorage.setItem("musik_user", JSON.stringify(newUser));
+          this.updateUserUI(newUser);
+          this.closeAuthModal();
+          this.showToast(`Добро пожаловать, ${username}!`);
+          return true;
+        }
+      }
+    };
+
+    try {
+      let remoteSuccess = false;
+      if (this.apiBase) {
+        const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
+        const payload = this.authMode === "login"
+          ? { login: username, password, device_name: "Web Device" }
+          : { username, password, email: email || null, display_name: username };
+
+        try {
+          const resp = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+          });
+          const ctype = resp.headers.get("content-type") || "";
+          if (ctype.includes("application/json")) {
+            const data = await resp.json();
+            if (!resp.ok) {
+              throw new Error(data.detail || "Ошибка авторизации");
+            }
+            this.token = data.token;
+            this.currentUser = data.user;
+            localStorage.setItem("musik_token", this.token);
+            localStorage.setItem("musik_user", JSON.stringify(data.user));
+            this.updateUserUI(data.user);
+            this.closeAuthModal();
+            this.showToast(`Добро пожаловать, ${data.user.display_name || data.user.username}!`);
+            await this.syncLibraryFromBackend();
+            this.loadWave(this.waveMode, false);
+            remoteSuccess = true;
+          }
+        } catch (apiErr) {
+          if (apiErr.message && !apiErr.message.includes("JSON") && !apiErr.message.includes("404") && apiErr.message !== "Failed to fetch") {
+            throw apiErr;
+          }
+          console.warn("Backend unavailable, using local standalone auth");
+        }
+      }
+
+      if (!remoteSuccess) {
+        localAuthFallback();
+        this.loadWave(this.waveMode, false);
+      }
 
     } catch (err) {
       this.dom.authErrorMsg.textContent = err.message;
@@ -590,9 +729,47 @@ class MusikApp {
         this.dom.startWaveBtnText.textContent = this.isWaveActive ? "Волна активна" : "Включить Мой поток";
       }
     } catch (e) {
-      console.error("Wave load error:", e);
-      this.dom.waveTrackList.innerHTML = '<div class="lyrics-empty" style="padding: 40px 0;">Не удалось загрузить рекомендации потока. Нажмите «Новая подборка».</div>';
-      this.dom.startWaveBtnText.textContent = "Включить Мой поток";
+      console.warn("Backend wave unavailable, using client-side wave engine:", e);
+      let localWave = [];
+      if (this.favorites.length > 0) {
+        localWave = [...this.favorites].sort(() => Math.random() - 0.5);
+      }
+      if (localWave.length < 15) {
+        try {
+          const itUrl = `https://itunes.apple.com/ru/rss/topsongs/limit=25/json`;
+          const itResp = await fetch(itUrl);
+          const itData = await itResp.json();
+          const items = (itData.feed?.entry || []).map((entry, idx) => ({
+            id: `wave_it_${idx}_${Date.now()}`,
+            title: entry["im:name"]?.label || "Hit",
+            artist: entry["im:artist"]?.label || "Artist",
+            artwork: (entry["im:image"]?.[2]?.label || "").replace("170x170bb", "600x600bb"),
+            stream_url: entry.link?.find(l => l.attributes?.type?.includes("audio"))?.attributes?.href || null,
+            source: "itunes"
+          }));
+          localWave = [...localWave, ...items.sort(() => Math.random() - 0.5)];
+        } catch (itErr) {}
+      }
+
+      // Filter out dislikes
+      const dislikeKeys = new Set(this.dislikes.map(t => this.cleanTrackKey(t.artist, t.title)));
+      localWave = localWave.filter(t => !dislikeKeys.has(this.cleanTrackKey(t.artist, t.title)));
+
+      this.waveQueue = localWave.slice(0, 15);
+      this.waveIndex = 0;
+      this.renderWaveTracks();
+
+      if (autoPlay && this.waveQueue.length > 0) {
+        this.isWaveActive = true;
+        this.queue = [...this.waveQueue];
+        this.queueIndex = 0;
+        this.renderQueue();
+        this.playTrack(this.waveQueue[0], false);
+        this.dom.startWaveBtnText.textContent = "Волна активна";
+        this.showToast("🌊 «Мой поток» запущен!");
+      } else {
+        this.dom.startWaveBtnText.textContent = this.isWaveActive ? "Волна активна" : "Включить Мой поток";
+      }
     } finally {
       this.isLoadingWave = false;
     }
@@ -910,6 +1087,9 @@ class MusikApp {
 
     this.dom.playerLikeBtn.classList.toggle("liked", isLiked);
     this.dom.playerDislikeBtn.classList.toggle("disliked", isDisliked);
+
+    if (this.dom.mLikeBtn) this.dom.mLikeBtn.classList.toggle("active", isLiked);
+    if (this.dom.mDislikeBtn) this.dom.mDislikeBtn.classList.toggle("active", isDisliked);
   }
 
   renderFavorites() {
@@ -1018,12 +1198,15 @@ class MusikApp {
       const pct = (current / duration) * 100;
       this.dom.progressFill.style.width = `${pct}%`;
       this.dom.currentTime.textContent = this.formatTime(current);
+      if (this.dom.mProgressFill) this.dom.mProgressFill.style.width = `${pct}%`;
+      if (this.dom.mCurrentTime) this.dom.mCurrentTime.textContent = this.formatTime(current);
       this.syncLyrics(current);
     });
 
     this.audio.addEventListener("durationchange", () => {
       if (this.audio.duration && !isNaN(this.audio.duration)) {
         this.dom.totalDuration.textContent = this.formatTime(this.audio.duration);
+        if (this.dom.mTotalDuration) this.dom.mTotalDuration.textContent = this.formatTime(this.audio.duration);
       }
     });
 
@@ -1070,7 +1253,10 @@ class MusikApp {
     // UI Updates
     this.dom.playerTitle.textContent = track.title;
     this.dom.playerArtist.textContent = track.artist;
-    this.dom.playerCover.src = track.artwork || "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?w=120&auto=format&fit=crop";
+    this.dom.playerCover.src = track.artwork || "logo.jpg";
+    if (this.dom.mPlayerTitle) this.dom.mPlayerTitle.textContent = track.title;
+    if (this.dom.mPlayerArtist) this.dom.mPlayerArtist.textContent = track.artist;
+    if (this.dom.mPlayerCover) this.dom.mPlayerCover.src = track.artwork || "logo.jpg";
     this.updateLikeDislikeButtons();
 
     // Lyrics overlay update
@@ -1109,10 +1295,26 @@ class MusikApp {
     if (audioSrc) {
       // INSTANT PLAYBACK FROM LOCAL CACHE!
       this.audio.src = audioSrc;
-    } else if (navigator.onLine) {
-      // ONLINE STREAMING
+    } else if (track.stream_url) {
+      // Direct audio stream (from iTunes / web stream / cached URL)
+      this.audio.src = track.stream_url;
+    } else if (this.apiBase) {
+      // ONLINE STREAMING via remote backend
       const streamUrl = this.api(`/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
       this.audio.src = streamUrl;
+    } else if (navigator.onLine) {
+      // Standalone client fallback for GitHub Pages
+      try {
+        const itQuery = `${track.artist} ${track.title}`;
+        const itRes = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(itQuery)}&entity=song&limit=1`);
+        const itData = await itRes.json();
+        if (itData.results && itData.results.length > 0 && itData.results[0].previewUrl) {
+          track.stream_url = itData.results[0].previewUrl;
+          this.audio.src = track.stream_url;
+        }
+      } catch (err) {
+        console.warn("Direct stream fetch error:", err);
+      }
     } else {
       // NO NETWORK AND TRACK NOT PRELOADED -> OFFLINE FALLBACK!
       console.warn("Track not available offline. Triggering offline fallback to downloaded favorites...");
@@ -1258,9 +1460,13 @@ class MusikApp {
       if (this.isPlaying) {
         this.dom.playIcon.classList.add("hidden");
         this.dom.pauseIcon.classList.remove("hidden");
+        if (this.dom.mPlayIcon) this.dom.mPlayIcon.classList.add("hidden");
+        if (this.dom.mPauseIcon) this.dom.mPauseIcon.classList.remove("hidden");
       } else {
         this.dom.playIcon.classList.remove("hidden");
         this.dom.pauseIcon.classList.add("hidden");
+        if (this.dom.mPlayIcon) this.dom.mPlayIcon.classList.remove("hidden");
+        if (this.dom.mPauseIcon) this.dom.mPauseIcon.classList.add("hidden");
       }
     }
   }
@@ -1493,12 +1699,46 @@ class MusikApp {
   // ==========================================
   async loadTrending(country = "ru") {
     this.dom.trendingGrid.innerHTML = '<div class="lyrics-loading" style="grid-column: 1/-1;">Загрузка популярных треков...</div>';
-    try {
-      const resp = await fetch(this.api(`/api/trending?country=${country}&limit=30`));
-      const data = await resp.json();
-      this.renderTrendingGrid(data.results || []);
-    } catch (e) {
-      this.dom.trendingGrid.innerHTML = '<div class="lyrics-empty" style="grid-column: 1/-1;">Не удалось загрузить тренды</div>';
+    let loaded = false;
+    if (this.apiBase) {
+      try {
+        const resp = await fetch(this.api(`/api/trending?country=${country}&limit=30`));
+        const ctype = resp.headers.get("content-type") || "";
+        if (ctype.includes("application/json")) {
+          const data = await resp.json();
+          if (data.results && data.results.length) {
+            this.renderTrendingGrid(data.results);
+            loaded = true;
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!loaded) {
+      try {
+        const itCountry = country.toLowerCase() === "ru" ? "ru" : "us";
+        const resp = await fetch(`https://itunes.apple.com/${itCountry}/rss/topsongs/limit=30/json`);
+        const data = await resp.json();
+        const entries = data.feed?.entry || [];
+        const results = entries.map((entry, idx) => ({
+          id: `top_${idx}_${Date.now()}`,
+          title: entry["im:name"]?.label || "Unknown Title",
+          artist: entry["im:artist"]?.label || "Unknown Artist",
+          artwork: (entry["im:image"]?.[2]?.label || "").replace("170x170bb", "600x600bb"),
+          stream_url: entry.link?.find(l => l.attributes?.type?.includes("audio"))?.attributes?.href || null,
+          source: "itunes_top"
+        }));
+        if (results.length) {
+          this.renderTrendingGrid(results);
+          loaded = true;
+        }
+      } catch (e) {
+        console.warn("iTunes top songs fallback error:", e);
+      }
+    }
+
+    if (!loaded) {
+      this.dom.trendingGrid.innerHTML = '<div class="lyrics-empty" style="grid-column: 1/-1;">Начните поиск музыки в строке поиска вверху</div>';
     }
   }
 
@@ -1541,15 +1781,40 @@ class MusikApp {
     this.dom.searchQueryLabel.textContent = `"${query}"`;
     this.dom.searchTrackList.innerHTML = '<div class="lyrics-loading" style="padding: 40px 0;">Поиск треков в каталоге...</div>';
 
-    try {
-      const resp = await fetch(this.api(`/api/search?q=${encodeURIComponent(query)}&limit=30`));
-      const data = await resp.json();
-      const results = data.results || [];
-      this.dom.searchResultsCount.textContent = `${results.length} треков найдено`;
-      this.renderTrackList(this.dom.searchTrackList, results);
-    } catch (e) {
-      this.dom.searchTrackList.innerHTML = '<div class="lyrics-empty" style="padding: 40px 0;">Ошибка при выполнении поиска</div>';
+    let results = [];
+    if (this.apiBase) {
+      try {
+        const resp = await fetch(this.api(`/api/search?q=${encodeURIComponent(query)}&limit=30`));
+        const ctype = resp.headers.get("content-type") || "";
+        if (ctype.includes("application/json")) {
+          const data = await resp.json();
+          results = data.results || [];
+        }
+      } catch (e) {}
     }
+
+    if (!results.length) {
+      try {
+        const itUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=30`;
+        const itResp = await fetch(itUrl);
+        const itData = await itResp.json();
+        results = (itData.results || []).map(r => ({
+          id: `itunes_${r.trackId}`,
+          title: r.trackName,
+          artist: r.artistName,
+          album: r.collectionName,
+          artwork: (r.artworkUrl100 || "").replace("100x100bb", "600x600bb"),
+          duration: Math.round(r.trackTimeMillis / 1000),
+          stream_url: r.previewUrl,
+          source: "itunes"
+        }));
+      } catch (err) {
+        console.warn("iTunes search error:", err);
+      }
+    }
+
+    this.dom.searchResultsCount.textContent = `${results.length} треков найдено`;
+    this.renderTrackList(this.dom.searchTrackList, results);
   }
 
   renderTrackList(container, tracks, options = {}) {
@@ -1670,6 +1935,9 @@ class MusikApp {
     document.querySelectorAll(".nav-item").forEach(item => {
       item.classList.toggle("active", item.dataset.view === viewName);
     });
+    document.querySelectorAll(".m-nav-item").forEach(item => {
+      item.classList.toggle("active", item.dataset.view === viewName);
+    });
 
     this.dom.waveView.classList.add("hidden");
     this.dom.homeView.classList.add("hidden");
@@ -1704,6 +1972,100 @@ class MusikApp {
         if (view) this.switchView(view);
       });
     });
+
+    // Mobile Navigation & Header
+    document.querySelectorAll(".m-nav-item").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const view = btn.dataset.view;
+        if (view) this.switchView(view);
+      });
+    });
+
+    if (this.dom.mobileProfileNavBtn) {
+      this.dom.mobileProfileNavBtn.addEventListener("click", () => {
+        if (this.currentUser) {
+          this.openSettingsModal();
+        } else {
+          this.openAuthModal("login");
+        }
+      });
+    }
+
+    if (this.dom.mobileUserAvatar) {
+      this.dom.mobileUserAvatar.addEventListener("click", () => {
+        if (this.currentUser) {
+          this.openSettingsModal();
+        } else {
+          this.openAuthModal("login");
+        }
+      });
+    }
+
+    if (this.dom.mobileSettingsBtn) {
+      this.dom.mobileSettingsBtn.addEventListener("click", () => this.openSettingsModal());
+    }
+
+    if (this.dom.mobileLogoBtn) {
+      this.dom.mobileLogoBtn.addEventListener("click", () => this.switchView("wave"));
+    }
+
+    if (this.dom.mobileSearchToggleBtn) {
+      this.dom.mobileSearchToggleBtn.addEventListener("click", () => {
+        this.switchView("search");
+        setTimeout(() => this.dom.searchInput && this.dom.searchInput.focus(), 150);
+      });
+    }
+
+    // Mini-player click on mobile -> open full mobile player
+    const openMobileFullPlayer = () => {
+      if (window.innerWidth <= 768 && this.dom.mobileFullPlayer) {
+        this.dom.mobileFullPlayer.classList.remove("hidden");
+      }
+    };
+    const playerBar = document.querySelector("footer.player-bar");
+    if (playerBar) {
+      playerBar.addEventListener("click", (e) => {
+        if (window.innerWidth <= 768 && !e.target.closest("button") && !e.target.closest(".slider-wrapper")) {
+          openMobileFullPlayer();
+        }
+      });
+    }
+
+    if (this.dom.closeFullPlayerBtn) {
+      this.dom.closeFullPlayerBtn.addEventListener("click", () => {
+        this.dom.mobileFullPlayer.classList.add("hidden");
+      });
+    }
+
+    if (this.dom.mPlayBtn) this.dom.mPlayBtn.addEventListener("click", () => this.togglePlay());
+    if (this.dom.mNextBtn) this.dom.mNextBtn.addEventListener("click", () => this.playNext());
+    if (this.dom.mPrevBtn) this.dom.mPrevBtn.addEventListener("click", () => this.playPrev());
+    if (this.dom.mLikeBtn) this.dom.mLikeBtn.addEventListener("click", () => this.toggleLike(this.currentTrack));
+    if (this.dom.mDislikeBtn) this.dom.mDislikeBtn.addEventListener("click", () => this.toggleDislike(this.currentTrack));
+    if (this.dom.mShuffleBtn) this.dom.mShuffleBtn.addEventListener("click", () => this.dom.shuffleBtn.click());
+    if (this.dom.mRepeatBtn) this.dom.mRepeatBtn.addEventListener("click", () => this.dom.repeatBtn.click());
+    if (this.dom.mPlayerQueueBtn) this.dom.mPlayerQueueBtn.addEventListener("click", () => {
+      this.dom.mobileFullPlayer.classList.add("hidden");
+      this.toggleQueue();
+    });
+    if (this.dom.mLyricsBtn) this.dom.mLyricsBtn.addEventListener("click", () => {
+      this.dom.mobileFullPlayer.classList.add("hidden");
+      this.toggleLyrics();
+    });
+    if (this.dom.mDownloadBtn) this.dom.mDownloadBtn.addEventListener("click", async () => {
+      if (window.offlineStorage && this.currentTrack) {
+        await window.offlineStorage.fetchAndCacheTrack(this.currentTrack, { isFavorite: true, isPreloaded: false });
+        this.showToast("Трек сохранен для оффлайн!");
+      }
+    });
+
+    if (this.dom.mProgressWrapper) {
+      this.dom.mProgressWrapper.addEventListener("click", (e) => {
+        const rect = this.dom.mProgressWrapper.getBoundingClientRect();
+        const pct = ((e.clientX - rect.left) / rect.width) * 100;
+        this.seek(pct);
+      });
+    }
 
     // Genre items
     document.querySelectorAll(".genre-item").forEach(btn => {
