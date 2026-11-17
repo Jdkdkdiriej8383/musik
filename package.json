@@ -1,0 +1,23 @@
+{
+  "name": "musik",
+  "version": "1.0.0",
+  "description": "Полноценная open-source альтернатива коммерческим сервисам (Spotify / Яндекс Музыка), с интеллектуальной рекомендательной системой **«Мой поток»** (аналог *Моей волны*), импортом плейлистов по ссылке с автоматической расстановкой лайков, дизлайками и аккаунтами с поддержкой любых устройств.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "prisma skills sync || exit 0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jdkdkdiriej8383/musik.git"
+  },
+  "keywords": [],
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Jdkdkdiriej8383/musik/issues"
+  },
+  "homepage": "https://github.com/Jdkdkdiriej8383/musik#readme",
+  "devDependencies": {
+    "prisma": "^8.0.0-rc.34"
+  }
+}

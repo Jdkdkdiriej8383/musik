@@ -12,10 +12,16 @@ musik.db
 
 # Environments & Secrets
 .env
+.env.*
+.env.local
 .venv
 env/
 venv/
 ENV/
+
+# Node & Dependencies
+node_modules/
+npm-debug.log*
 
 # Logs & temp files
 *.log

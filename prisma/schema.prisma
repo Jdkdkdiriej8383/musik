@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           Int        @id @default(autoincrement())
+  username     String     @unique @db.VarChar(64)
+  email        String?    @unique @db.VarChar(128)
+  passwordHash String     @map("password_hash") @db.VarChar(256)
+  displayName  String?    @map("display_name") @db.VarChar(64)
+  avatarUrl    String?    @map("avatar_url")
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime   @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  sessions     Session[]
+  likes        Like[]
+  dislikes     Dislike[]
+  history      History[]
+  imports      Import[]
+
+  @@map("users")
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  userId     Int      @map("user_id")
+  token      String   @unique @db.VarChar(64)
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(6)
+  deviceName String?  @map("device_name") @db.VarChar(128)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([token])
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  trackId   String   @map("track_id") @db.VarChar(128)
+  title     String   @db.VarChar(256)
+  artist    String   @db.VarChar(256)
+  artwork   String?
+  duration  Int?     @default(0)
+  source    String?  @default("unknown") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+  @@index([userId])
+  @@map("likes")
+}
+
+model Dislike {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  trackId   String   @map("track_id") @db.VarChar(128)
+  title     String   @db.VarChar(256)
+  artist    String   @db.VarChar(256)
+  artwork   String?
+  duration  Int?     @default(0)
+  source    String?  @default("unknown") @db.VarChar(32)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, trackId])
+  @@index([userId])
+  @@map("dislikes")
+}
+
+model History {
+  id        Int      @id @default(autoincrement())
+  userId    Int      @map("user_id")
+  trackId   String   @map("track_id") @db.VarChar(128)
+  title     String   @db.VarChar(256)
+  artist    String   @db.VarChar(256)
+  artwork   String?
+  duration  Int?     @default(0)
+  source    String?  @default("unknown") @db.VarChar(32)
+  playedAt  DateTime @default(now()) @map("played_at") @db.Timestamptz(6)
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("history")
+}
+
+model Import {
+  id           Int      @id @default(autoincrement())
+  userId       Int      @map("user_id")
+  sourceUrl    String   @map("source_url")
+  trackCount   Int?     @default(0) @map("track_count")
+  successCount Int?     @default(0) @map("success_count")
+  status       String?  @default("completed") @db.VarChar(32)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("imports")
+}
+
+model Setting {
+  key       String   @id @db.VarChar(64)
+  value     String
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("settings")
+}
