@@ -751,6 +751,21 @@ class MusikApp {
         } catch (itErr) {}
       }
 
+      if (localWave.length === 0) {
+        localWave = [
+          { id: "def_1", title: "Никто", artist: "Алексей Горшенёв", artwork: "logo.jpg" },
+          { id: "def_2", title: "Мгновение", artist: "ГОРШЕНЕВ", artwork: "logo.jpg" },
+          { id: "def_3", title: "Кровавая Мэри", artist: "Ундервуд", artwork: "logo.jpg" },
+          { id: "def_4", title: "Цветут цветы", artist: "Танцы Минус", artwork: "logo.jpg" },
+          { id: "def_5", title: "Демоны", artist: "Смысловые Галлюцинации", artwork: "logo.jpg" },
+          { id: "def_6", title: "Питер рок-н-ролл", artist: "Бригадный подряд, Михаил Горшенёв", artwork: "logo.jpg" },
+          { id: "def_7", title: "Лесник", artist: "Король и Шут", artwork: "logo.jpg" },
+          { id: "def_8", title: "Прыгну со скалы", artist: "Король и Шут", artwork: "logo.jpg" },
+          { id: "def_9", title: "Кукла колдуна", artist: "Король и Шут", artwork: "logo.jpg" },
+          { id: "def_10", title: "Blinding Lights", artist: "The Weeknd", artwork: "logo.jpg" }
+        ];
+      }
+
       // Filter out dislikes
       const dislikeKeys = new Set(this.dislikes.map(t => this.cleanTrackKey(t.artist, t.title)));
       localWave = localWave.filter(t => !dislikeKeys.has(this.cleanTrackKey(t.artist, t.title)));
@@ -1738,7 +1753,21 @@ class MusikApp {
     }
 
     if (!loaded) {
-      this.dom.trendingGrid.innerHTML = '<div class="lyrics-empty" style="grid-column: 1/-1;">Начните поиск музыки в строке поиска вверху</div>';
+      const defaultTracks = [
+        { id: "def_1", title: "Никто", artist: "Алексей Горшенёв", artwork: "logo.jpg" },
+        { id: "def_2", title: "Мгновение", artist: "ГОРШЕНЕВ", artwork: "logo.jpg" },
+        { id: "def_3", title: "Кровавая Мэри", artist: "Ундервуд", artwork: "logo.jpg" },
+        { id: "def_4", title: "Цветут цветы", artist: "Танцы Минус", artwork: "logo.jpg" },
+        { id: "def_5", title: "Демоны", artist: "Смысловые Галлюцинации", artwork: "logo.jpg" },
+        { id: "def_6", title: "Питер рок-н-ролл", artist: "Бригадный подряд, Михаил Горшенёв", artwork: "logo.jpg" },
+        { id: "def_7", title: "Лесник", artist: "Король и Шут", artwork: "logo.jpg" },
+        { id: "def_8", title: "Прыгну со скалы", artist: "Король и Шут", artwork: "logo.jpg" },
+        { id: "def_9", title: "Кукла колдуна", artist: "Король и Шут", artwork: "logo.jpg" },
+        { id: "def_10", title: "Blinding Lights", artist: "The Weeknd", artwork: "logo.jpg" },
+        { id: "def_11", title: "Believer", artist: "Imagine Dragons", artwork: "logo.jpg" },
+        { id: "def_12", title: "Bohemian Rhapsody", artist: "Queen", artwork: "logo.jpg" }
+      ];
+      this.renderTrendingGrid(defaultTracks);
     }
   }
 
