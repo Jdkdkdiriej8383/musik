@@ -15,11 +15,11 @@ class MusikApp {
     // Remote Backend URL (Defaults to user's Render cloud backend + Supabase PostgreSQL)
     const defaultRemoteBackend = "https://musik-npzp.onrender.com";
     let storedBackend = localStorage.getItem("musik_api_backend");
-    if (!storedBackend && (window.location.hostname.includes("github.io") || !window.location.hostname.includes("localhost"))) {
+    if (!storedBackend || storedBackend === "null" || storedBackend === "undefined" || storedBackend.trim() === "" || (!storedBackend.startsWith("http://") && !storedBackend.startsWith("https://"))) {
       storedBackend = defaultRemoteBackend;
-      localStorage.setItem("musik_api_backend", storedBackend);
+      localStorage.setItem("musik_api_backend", defaultRemoteBackend);
     }
-    this.apiBase = storedBackend || "";
+    this.apiBase = storedBackend || defaultRemoteBackend;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has("api")) {
       this.apiBase = urlParams.get("api").replace(/\/$/, "");
@@ -310,23 +310,27 @@ class MusikApp {
       const resp = await fetch(this.api("/api/auth/me"), {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
-      const contentType = resp.headers.get("content-type") || "";
-      if (contentType.includes("application/json")) {
-        const data = await resp.json();
-        if (resp.ok && (data.authenticated || data.user)) {
-          const user = data.user || data;
-          this.currentUser = user;
-          localStorage.setItem("musik_user", JSON.stringify(user));
-          this.updateUserUI(user);
-          await this.syncLibraryFromBackend();
-        } else if (resp.status === 401) {
-          // Token explicitly revoked by server
-          this.token = null;
-          this.currentUser = null;
-          localStorage.removeItem("musik_token");
-          localStorage.removeItem("musik_user");
-          this.updateUserUI(null);
-        }
+      let data = null;
+      try {
+        const text = await resp.text();
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        data = null;
+      }
+
+      if (data && (data.authenticated || data.user)) {
+        const user = data.user || data;
+        this.currentUser = user;
+        localStorage.setItem("musik_user", JSON.stringify(user));
+        this.updateUserUI(user);
+        await this.syncLibraryFromBackend();
+      } else if (resp.status === 401) {
+        // Token explicitly revoked by server
+        this.token = null;
+        this.currentUser = null;
+        localStorage.removeItem("musik_token");
+        localStorage.removeItem("musik_user");
+        this.updateUserUI(null);
       }
     } catch (e) {
       console.warn("Auth check network error:", e);
@@ -341,7 +345,8 @@ class MusikApp {
   // ==========================================
   api(path) {
     if (!path.startsWith("/")) path = "/" + path;
-    return `${this.apiBase}${path}`;
+    const base = this.apiBase || "https://musik-npzp.onrender.com";
+    return `${base}${path}`;
   }
 
   // ==========================================
@@ -427,7 +432,14 @@ class MusikApp {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
       if (resp.ok) {
-        const data = await resp.json();
+        let data = null;
+        try {
+          const text = await resp.text();
+          data = JSON.parse(text);
+        } catch (jsonErr) {
+          data = null;
+        }
+        if (!data) return;
         // Invariant deduplication: each song exists strictly once across all 4 streams
         const seenFav = new Set();
         this.favorites = (data.likes || []).filter(t => {
@@ -456,11 +468,26 @@ class MusikApp {
     }
   }
 
+  renderAvatarEqualizer(elem) {
+    if (!elem) return;
+    if (elem.querySelector(".avatar-eq")) return;
+    elem.innerHTML = `
+      <div class="avatar-eq">
+        <span class="eq-bar eq-b1"></span>
+        <span class="eq-bar eq-b2"></span>
+        <span class="eq-bar eq-b3"></span>
+        <span class="eq-bar eq-b4"></span>
+      </div>
+    `;
+  }
+
   updateUserUI(user) {
+    this.renderAvatarEqualizer(this.dom.userAvatar);
+    this.renderAvatarEqualizer(this.dom.mobileUserAvatar);
+
     if (user) {
-      const initial = (user.display_name || user.username || "U")[0].toUpperCase();
-      this.dom.userAvatar.textContent = initial;
-      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.textContent = initial;
+      if (this.dom.userAvatar) this.dom.userAvatar.classList.add("logged-in");
+      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.classList.add("logged-in");
       this.dom.userName.textContent = user.display_name || user.username;
       this.dom.userStatus.textContent = this.token && this.token.startsWith("local_token_") ? "Локальный профиль" : "Облачная синхронизация";
       this.dom.userStatus.style.color = "#1db954";
@@ -469,8 +496,8 @@ class MusikApp {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       `;
     } else {
-      this.dom.userAvatar.textContent = "?";
-      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.textContent = "?";
+      if (this.dom.userAvatar) this.dom.userAvatar.classList.remove("logged-in");
+      if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.classList.remove("logged-in");
       this.dom.userName.textContent = "Гость";
       this.dom.userStatus.textContent = "Нажмите, чтобы войти";
       this.dom.userStatus.style.color = "var(--text-secondary)";
@@ -489,11 +516,9 @@ class MusikApp {
     this.dom.waveDislikesCount.textContent = `👎 Дизлайков: ${this.dislikes.length}`;
   }
 
-  openAuthModal(mode = "login") {
+  setAuthMode(mode) {
     this.authMode = mode;
     this.dom.authErrorMsg.classList.add("hidden");
-    this.dom.authForm.reset();
-
     if (mode === "login") {
       this.dom.tabLogin.classList.add("active");
       this.dom.tabRegister.classList.remove("active");
@@ -505,7 +530,11 @@ class MusikApp {
       this.dom.regEmailGroup.style.display = "block";
       this.dom.authSubmitBtn.textContent = "Зарегистрироваться";
     }
+  }
 
+  openAuthModal(mode = "login") {
+    this.dom.authForm.reset();
+    this.setAuthMode(mode);
     this.dom.authModal.classList.remove("hidden");
     this.dom.authUsername.focus();
   }
@@ -604,41 +633,69 @@ class MusikApp {
 
     try {
       let remoteSuccess = false;
-      if (this.apiBase) {
-        const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
-        const payload = this.authMode === "login"
-          ? { login: username, password, device_name: "Web Device" }
-          : { username, password, email: email || null, display_name: username };
+      const apiTarget = this.apiBase || "https://musik-npzp.onrender.com";
+      const endpoint = `${apiTarget}${this.authMode === "login" ? "/api/auth/login" : "/api/auth/register"}`;
+      const payload = this.authMode === "login"
+        ? { login: username, password, device_name: "Web Device" }
+        : { username, password, email: email || null, display_name: username };
 
+      try {
+        const resp = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload)
+        });
+
+        // Safe JSON parsing: NEVER crash or expose raw JSON.parse error to user
+        let data = null;
         try {
-          const resp = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload)
-          });
-          const ctype = resp.headers.get("content-type") || "";
-          if (ctype.includes("application/json")) {
-            const data = await resp.json();
-            if (!resp.ok) {
-              throw new Error(data.detail || "Ошибка авторизации");
-            }
-            this.token = data.token;
-            this.currentUser = data.user;
-            localStorage.setItem("musik_token", this.token);
-            localStorage.setItem("musik_user", JSON.stringify(data.user));
-            this.updateUserUI(data.user);
-            this.closeAuthModal();
-            this.showToast(`Добро пожаловать, ${data.user.display_name || data.user.username}!`);
-            await this.syncLibraryFromBackend();
-            this.loadWave(this.waveMode, false);
-            remoteSuccess = true;
-          }
-        } catch (apiErr) {
-          if (apiErr.message && !apiErr.message.includes("JSON") && !apiErr.message.includes("404") && apiErr.message !== "Failed to fetch") {
-            throw apiErr;
-          }
-          console.warn("Backend unavailable, using local standalone auth");
+          const text = await resp.text();
+          data = JSON.parse(text);
+        } catch (jsonErr) {
+          data = null;
         }
+
+        if (!resp.ok) {
+          if (resp.status === 409) {
+            // User already registered in cloud Supabase!
+            if (this.authMode === "register") {
+              this.setAuthMode("login");
+              this.dom.authUsername.value = username;
+              this.dom.authPassword.value = password;
+              throw new Error(`Аккаунт «${username}» уже существует в облаке! Мы переключили вас на «Вход» — нажмите «Войти».`);
+            } else {
+              throw new Error(data && data.detail ? data.detail : "Пользователь с таким именем уже существует");
+            }
+          }
+          if (resp.status === 401 || resp.status === 403) {
+            throw new Error(data && data.detail ? data.detail : "Неверный логин или пароль");
+          }
+          if (resp.status === 502 || resp.status === 503) {
+            throw new Error("Облачный сервер Render просыпается (холодный старт)... Подождите 10-15 секунд и нажмите кнопку снова!");
+          }
+          throw new Error(data && data.detail ? data.detail : `Ошибка авторизации (${resp.status})`);
+        }
+
+        if (!data || !data.token) {
+          throw new Error("Не удалось получить данные сессии от сервера");
+        }
+
+        this.token = data.token;
+        this.currentUser = data.user;
+        localStorage.setItem("musik_token", this.token);
+        localStorage.setItem("musik_user", JSON.stringify(data.user));
+        this.updateUserUI(data.user);
+        this.closeAuthModal();
+        this.showToast(`Добро пожаловать, ${data.user.display_name || data.user.username}!`);
+        await this.syncLibraryFromBackend();
+        this.loadWave(this.waveMode, false);
+        remoteSuccess = true;
+
+      } catch (apiErr) {
+        if (apiErr.message && !apiErr.message.includes("Failed to fetch") && !apiErr.message.includes("NetworkError")) {
+          throw apiErr;
+        }
+        console.warn("Backend unavailable, using local standalone auth:", apiErr);
       }
 
       if (!remoteSuccess) {
@@ -697,7 +754,14 @@ class MusikApp {
       if (!resp.ok) {
         throw new Error(`HTTP error ${resp.status}`);
       }
-      const data = await resp.json();
+      let data = null;
+      try {
+        const text = await resp.text();
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        data = null;
+      }
+      if (!data) throw new Error("Неверный формат ответа волны");
       const rawTracks = data.results || [];
 
       // Deduplicate by canonical key: 1 song across all 4 streams
@@ -2274,8 +2338,8 @@ class MusikApp {
     });
 
     this.dom.closeAuthModalBtn.addEventListener("click", () => this.closeAuthModal());
-    this.dom.tabLogin.addEventListener("click", () => this.openAuthModal("login"));
-    this.dom.tabRegister.addEventListener("click", () => this.openAuthModal("register"));
+    this.dom.tabLogin.addEventListener("click", () => this.setAuthMode("login"));
+    this.dom.tabRegister.addEventListener("click", () => this.setAuthMode("register"));
     this.dom.authForm.addEventListener("submit", (e) => this.handleAuthSubmit(e));
 
     // Import Modal Triggers
