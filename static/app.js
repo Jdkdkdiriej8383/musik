@@ -12,8 +12,14 @@ class MusikApp {
     this.token = localStorage.getItem("musik_token") || null;
     this.currentUser = null;
 
-    // Remote Backend URL (for GitHub Pages hosting or custom API host)
-    this.apiBase = localStorage.getItem("musik_api_backend") || "";
+    // Remote Backend URL (Defaults to user's Render cloud backend + Supabase PostgreSQL)
+    const defaultRemoteBackend = "https://musik-npzp.onrender.com";
+    let storedBackend = localStorage.getItem("musik_api_backend");
+    if (!storedBackend && (window.location.hostname.includes("github.io") || !window.location.hostname.includes("localhost"))) {
+      storedBackend = defaultRemoteBackend;
+      localStorage.setItem("musik_api_backend", storedBackend);
+    }
+    this.apiBase = storedBackend || "";
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has("api")) {
       this.apiBase = urlParams.get("api").replace(/\/$/, "");

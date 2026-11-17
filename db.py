@@ -6,7 +6,20 @@ import secrets
 from typing import Optional, Dict, Any, List
 from datetime import datetime
 
+try:
+    import psycopg2
+    from psycopg2.extras import RealDictCursor
+    HAS_PSYCOPG2 = True
+except ImportError:
+    HAS_PSYCOPG2 = False
+
 DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "musik.db")
+
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://postgres.zztzdhrkfxlcwvktmcgy:j%26j%5ErPA%21uET%24yGw47aWnmhb%257S%26SHE@aws-1-eu-west-1.pooler.supabase.com:6543/postgres"
+)
+USE_POSTGRES = bool(DATABASE_URL and HAS_PSYCOPG2)
 
 CYR_TO_LAT = {
     'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 'е': 'e', 'ё': 'yo', 'ж': 'zh',
@@ -89,7 +102,82 @@ def get_canonical_key(artist: str, title: str) -> str:
     return f"{clean_a}:::{clean_t}"
 
 
+class PgCursorWrapper:
+    def __init__(self, cursor, conn):
+        self._cur = cursor
+        self._conn = conn
+        self.lastrowid = None
+
+    def execute(self, sql, params=None):
+        sql_pg = sql.replace("?", "%s")
+        is_insert = sql_pg.strip().upper().startswith("INSERT INTO")
+        has_returning = "RETURNING" in sql_pg.upper()
+        if is_insert and not has_returning:
+            sql_pg_returning = sql_pg.rstrip("; \t\r\n") + " RETURNING id;"
+        else:
+            sql_pg_returning = sql_pg
+
+        try:
+            if params is not None:
+                self._cur.execute(sql_pg_returning, params)
+            else:
+                self._cur.execute(sql_pg_returning)
+            if is_insert and not has_returning and self._cur.description:
+                row = self._cur.fetchone()
+                if row and "id" in row:
+                    self.lastrowid = row["id"]
+        except Exception as e:
+            if is_insert and not has_returning:
+                try:
+                    self._conn.rollback()
+                except Exception:
+                    pass
+                if params is not None:
+                    self._cur.execute(sql_pg, params)
+                else:
+                    self._cur.execute(sql_pg)
+            else:
+                raise e
+        return self
+
+    def fetchone(self):
+        return self._cur.fetchone()
+
+    def fetchall(self):
+        return self._cur.fetchall()
+
+    @property
+    def rowcount(self):
+        return self._cur.rowcount
+
+    def close(self):
+        self._cur.close()
+
+
+class PgConnWrapper:
+    def __init__(self, conn):
+        self._conn = conn
+
+    def cursor(self):
+        return PgCursorWrapper(self._conn.cursor(cursor_factory=RealDictCursor), self._conn)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        self._conn.rollback()
+
+    def close(self):
+        self._conn.close()
+
+
 def get_db():
+    if USE_POSTGRES:
+        try:
+            raw_conn = psycopg2.connect(DATABASE_URL)
+            return PgConnWrapper(raw_conn)
+        except Exception as e:
+            print("Postgres connection failed, using SQLite fallback:", e)
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
@@ -99,120 +187,190 @@ def init_db():
     conn = get_db()
     cursor = conn.cursor()
 
-    # Users table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        email TEXT UNIQUE,
-        password_hash TEXT NOT NULL,
-        salt TEXT NOT NULL,
-        display_name TEXT,
-        avatar_url TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
+    if USE_POSTGRES and isinstance(conn, PgConnWrapper):
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username VARCHAR(100) UNIQUE NOT NULL,
+            email VARCHAR(255) UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            display_name VARCHAR(150),
+            avatar_url TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token VARCHAR(255) PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            device_name VARCHAR(150),
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            last_active TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS likes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id VARCHAR(255) NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            album TEXT,
+            duration INTEGER DEFAULT 0,
+            artwork TEXT,
+            genre VARCHAR(100),
+            canonical_key TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, track_id)
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dislikes (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id VARCHAR(255) NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            album TEXT,
+            duration INTEGER DEFAULT 0,
+            artwork TEXT,
+            genre VARCHAR(100),
+            canonical_key TEXT,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, track_id)
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id VARCHAR(255) NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            artwork TEXT,
+            genre VARCHAR(100),
+            duration INTEGER DEFAULT 0,
+            listened_seconds INTEGER DEFAULT 0,
+            skipped SMALLINT DEFAULT 0,
+            canonical_key TEXT,
+            played_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS imports (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            source VARCHAR(50) NOT NULL,
+            name VARCHAR(255),
+            tracks_count INTEGER NOT NULL,
+            created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key VARCHAR(100) PRIMARY KEY,
+            value TEXT,
+            updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+    else:
+        # SQLite
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            email TEXT UNIQUE,
+            password_hash TEXT NOT NULL,
+            salt TEXT NOT NULL,
+            display_name TEXT,
+            avatar_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sessions (
+            token TEXT PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            device_name TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            album TEXT,
+            duration INTEGER DEFAULT 0,
+            artwork TEXT,
+            genre TEXT,
+            canonical_key TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, track_id)
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS dislikes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            album TEXT,
+            duration INTEGER DEFAULT 0,
+            artwork TEXT,
+            genre TEXT,
+            canonical_key TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(user_id, track_id)
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS history (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            track_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            artist TEXT NOT NULL,
+            artwork TEXT,
+            genre TEXT,
+            duration INTEGER DEFAULT 0,
+            listened_seconds INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            canonical_key TEXT,
+            played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS imports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            url TEXT NOT NULL,
+            source TEXT NOT NULL,
+            name TEXT,
+            tracks_count INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
+        """)
 
-    # Multi-device Auth tokens / sessions table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS sessions (
-        token TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        device_name TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-
-    # User Likes / Favorites table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS likes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        track_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        artist TEXT NOT NULL,
-        album TEXT,
-        duration INTEGER DEFAULT 0,
-        artwork TEXT,
-        genre TEXT,
-        canonical_key TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, track_id)
-    );
-    """)
-
-    # User Dislikes table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS dislikes (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        track_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        artist TEXT NOT NULL,
-        album TEXT,
-        duration INTEGER DEFAULT 0,
-        artwork TEXT,
-        genre TEXT,
-        canonical_key TEXT,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(user_id, track_id)
-    );
-    """)
-
-    # Play history / Listening behavior table
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        track_id TEXT NOT NULL,
-        title TEXT NOT NULL,
-        artist TEXT NOT NULL,
-        artwork TEXT,
-        genre TEXT,
-        duration INTEGER DEFAULT 0,
-        listened_seconds INTEGER DEFAULT 0,
-        skipped INTEGER DEFAULT 0,
-        canonical_key TEXT,
-        played_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-
-    # Playlist imports log
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS imports (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        url TEXT NOT NULL,
-        source TEXT NOT NULL,
-        name TEXT,
-        tracks_count INTEGER NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
-    """)
-
-    # Ensure canonical_key columns exist on older tables
-    for table_name in ["likes", "dislikes", "history"]:
-        try:
-            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN canonical_key TEXT")
-        except sqlite3.OperationalError:
-            pass  # Already exists
-
-    # Indices for high performance queries
+    # Indices for performance
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_likes_user ON likes(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_likes_canon ON likes(user_id, canonical_key);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_dislikes_user ON dislikes(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_dislikes_canon ON dislikes(user_id, canonical_key);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_history_user ON history(user_id);")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_token ON sessions(token);")
-
-    # System settings table (for integration tokens, etc.)
-    cursor.execute("""
-    CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT
-    );
-    """)
 
     conn.commit()
     conn.close()
