@@ -2168,3 +2168,594 @@ input:checked + .slider:before {
   align-items: center;
   gap: 10px;
 }
+
+
+/* ==========================================================================
+   MOBILE & RESPONSIVE DESIGN (< 768px)
+   ========================================================================== */
+
+/* Desktop defaults: hide mobile elements */
+.mobile-top-header,
+.mobile-bottom-nav,
+.mobile-full-player {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  :root {
+    --player-height: 58px;
+    --bottom-nav-height: 60px;
+  }
+
+  body {
+    overflow: hidden;
+  }
+
+  #app {
+    display: flex;
+    flex-direction: column;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  /* Hide desktop sidebar */
+  aside.sidebar {
+    display: none !important;
+  }
+
+  /* Show mobile top header */
+  .mobile-top-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 54px;
+    padding: 0 16px;
+    background: rgba(12, 13, 18, 0.95);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 50;
+  }
+
+  .m-top-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+  }
+
+  .m-top-logo .brand {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .m-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .m-top-actions .icon-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .m-top-actions .icon-btn svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .m-top-actions .user-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 13px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1db954, #3b82f6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Main content scrolls smoothly */
+  main.main-content {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 12px 14px calc(var(--player-height) + var(--bottom-nav-height) + env(safe-area-inset-bottom, 12px) + 20px) 14px;
+  }
+
+  .top-bar {
+    display: none; /* replaced by mobile top header and mobile search */
+  }
+
+  /* Trending and categories grids */
+  .trending-grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)) !important;
+    gap: 12px !important;
+  }
+
+  .track-card {
+    padding: 10px !important;
+  }
+
+  .card-title {
+    font-size: 13px !important;
+  }
+
+  .card-artist {
+    font-size: 11px !important;
+  }
+
+  /* Mobile Track Rows */
+  .track-row {
+    grid-template-columns: 44px 1fr auto !important;
+    padding: 8px 10px !important;
+    gap: 10px !important;
+  }
+
+  .track-col-duration,
+  .track-col-album,
+  .track-num {
+    display: none !important;
+  }
+
+  .track-col-info {
+    min-width: 0;
+  }
+
+  .track-name {
+    font-size: 14px !important;
+  }
+
+  .track-artist-sub {
+    font-size: 12px !important;
+  }
+
+  .track-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .track-actions .action-btn {
+    width: 32px;
+    height: 32px;
+    opacity: 1 !important;
+  }
+
+  /* Mobile Mini Player Bar */
+  footer.player-bar {
+    position: fixed;
+    bottom: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px) + 6px);
+    left: 8px;
+    right: 8px;
+    width: calc(100% - 16px);
+    height: var(--player-height);
+    background: rgba(20, 22, 28, 0.95);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.65);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    z-index: 90;
+    cursor: pointer;
+  }
+
+  .player-left {
+    flex: 1;
+    min-width: 0;
+    gap: 10px;
+  }
+
+  .track-cover-wrapper {
+    width: 44px;
+    height: 44px;
+    border-radius: 8px;
+  }
+
+  .player-title {
+    font-size: 13px;
+  }
+
+  .player-artist {
+    font-size: 11px;
+  }
+
+  .player-feedback-btns {
+    display: none; /* Available inside full player and track lists */
+  }
+
+  /* Player center on mini bar: only show play button */
+  .player-center {
+    width: auto;
+    margin: 0;
+  }
+
+  .timeline-row,
+  .controls-row button:not(#playBtn) {
+    display: none !important;
+  }
+
+  .play-circle {
+    width: 40px !important;
+    height: 40px !important;
+    margin: 0 !important;
+  }
+
+  .play-circle svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+
+  .player-right {
+    display: none !important;
+  }
+
+  /* Mobile Bottom Navigation Bar */
+  .mobile-bottom-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: calc(var(--bottom-nav-height) + env(safe-area-inset-bottom, 0px));
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background: rgba(12, 13, 18, 0.96);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid var(--border);
+    z-index: 100;
+    justify-content: space-around;
+    align-items: center;
+  }
+
+  .m-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    cursor: pointer;
+    flex: 1;
+    height: 100%;
+    position: relative;
+    transition: color 0.15s ease;
+    padding: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .m-nav-item.active {
+    color: var(--primary);
+    font-weight: 700;
+  }
+
+  .m-nav-item svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .m-nav-wave-icon {
+    display: flex;
+    align-items: flex-end;
+    gap: 2.5px;
+    height: 18px;
+  }
+
+  .m-nav-wave-icon span {
+    width: 3px;
+    background: currentColor;
+    border-radius: 3px;
+    animation: mWaveBounce 1.2s infinite ease-in-out alternate;
+  }
+
+  .m-nav-wave-icon span:nth-child(1) { height: 35%; animation-delay: 0.1s; }
+  .m-nav-wave-icon span:nth-child(2) { height: 95%; animation-delay: 0.3s; }
+  .m-nav-wave-icon span:nth-child(3) { height: 55%; animation-delay: 0.2s; }
+
+  @keyframes mWaveBounce {
+    0% { transform: scaleY(0.4); }
+    100% { transform: scaleY(1.0); }
+  }
+
+  .m-badge-pill {
+    position: absolute;
+    top: 6px;
+    right: calc(50% - 18px);
+    background: var(--primary);
+    color: #000;
+    font-size: 9px;
+    font-weight: 800;
+    padding: 1px 5px;
+    border-radius: 10px;
+  }
+
+  /* Fullscreen Mobile Player */
+  .mobile-full-player {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: linear-gradient(180deg, #161822 0%, #0a0b0f 100%);
+    display: flex;
+    flex-direction: column;
+    padding: calc(14px + env(safe-area-inset-top, 0px)) 20px calc(24px + env(safe-area-inset-bottom, 0px)) 20px;
+    transform: translateY(0);
+    transition: transform 0.32s cubic-bezier(0.2, 0.9, 0.3, 1);
+    overflow-y: auto;
+  }
+
+  .mobile-full-player.hidden {
+    transform: translateY(100%);
+    display: flex !important;
+    pointer-events: none;
+  }
+
+  .m-player-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    margin-bottom: 16px;
+    flex-shrink: 0;
+  }
+
+  .m-player-header-title {
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-secondary);
+  }
+
+  .m-icon-btn {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .m-icon-btn svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .m-player-content {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    justify-content: space-around;
+    max-width: 380px;
+    margin: 0 auto;
+    width: 100%;
+  }
+
+  .m-player-cover-wrap {
+    width: 100%;
+    max-width: 290px;
+    aspect-ratio: 1;
+    margin: 0 auto 20px auto;
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .m-player-cover-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .m-player-info-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    gap: 12px;
+  }
+
+  .m-player-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .m-title {
+    font-size: 20px;
+    font-weight: 800;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .m-artist {
+    font-size: 15px;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .m-player-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  .m-action-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .m-action-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .m-action-btn.active.like-btn {
+    background: rgba(29, 185, 84, 0.2);
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+
+  .m-action-btn.active.dislike-btn {
+    background: rgba(239, 68, 68, 0.2);
+    border-color: #ef4444;
+    color: #ef4444;
+  }
+
+  .m-player-timeline {
+    margin-bottom: 20px;
+  }
+
+  .m-time-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 8px;
+  }
+
+  .m-player-controls-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 24px;
+    padding: 0 4px;
+  }
+
+  .m-ctrl-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+  }
+
+  .m-ctrl-btn.active {
+    color: var(--primary);
+  }
+
+  .m-ctrl-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  .m-ctrl-nav svg {
+    width: 28px;
+    height: 28px;
+    color: #fff;
+  }
+
+  .m-ctrl-play {
+    width: 68px;
+    height: 68px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #000;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 6px 24px rgba(29, 185, 84, 0.45);
+    transition: transform 0.15s ease;
+  }
+
+  .m-ctrl-play:active {
+    transform: scale(0.94);
+  }
+
+  .m-ctrl-play svg {
+    width: 28px;
+    height: 28px;
+  }
+
+  .m-player-bottom-bar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+  }
+
+  .m-pill-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid var(--border);
+    color: var(--text-main);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .m-pill-btn svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  /* Modals on Mobile */
+  .modal-card {
+    width: 92% !important;
+    max-width: 400px !important;
+    margin: auto !important;
+    border-radius: 20px !important;
+    padding: 20px !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+  }
+
+  .form-input {
+    font-size: 16px !important; /* Prevents auto zoom-in on iPhone/Android */
+    height: 46px !important;
+  }
+
+  .btn-block {
+    height: 48px !important;
+    font-size: 15px !important;
+  }
+}
