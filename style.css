@@ -1282,19 +1282,95 @@ body {
 }
 
 .user-avatar {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: var(--radius-full);
-  background: linear-gradient(135deg, #6366f1, #1db954);
-  color: #fff;
-  font-weight: 700;
-  font-size: 15px;
+  background: #0f1218;
+  border: 1.5px solid rgba(30, 215, 96, 0.4);
   display: flex;
   align-items: center;
   justify-content: center;
-  text-transform: uppercase;
   flex-shrink: 0;
-  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+  box-shadow: 0 0 10px rgba(30, 215, 96, 0.15);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  overflow: hidden;
+  position: relative;
+}
+
+.user-avatar:hover {
+  border-color: #1ed760;
+  box-shadow: 0 0 16px rgba(30, 215, 96, 0.45);
+  transform: scale(1.05);
+}
+
+.user-avatar.logged-in {
+  border-color: #1ed760;
+  box-shadow: 0 0 14px rgba(30, 215, 96, 0.35);
+}
+
+.user-avatar.logged-in::after {
+  content: "";
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 7px;
+  height: 7px;
+  background: #1ed760;
+  border-radius: 50%;
+  border: 1.5px solid #0f1218;
+  box-shadow: 0 0 6px #1ed760;
+}
+
+.avatar-eq {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 3px;
+  height: 18px;
+  width: 22px;
+}
+
+.avatar-eq .eq-bar {
+  width: 3px;
+  background: #1ed760;
+  border-radius: 3px;
+  box-shadow: 0 0 6px rgba(30, 215, 96, 0.7);
+  transform-origin: bottom center;
+}
+
+.avatar-eq .eq-b1 {
+  height: 5px;
+  animation: av-b1 1.1s infinite ease-in-out alternate;
+}
+.avatar-eq .eq-b2 {
+  height: 17px;
+  animation: av-b2 1.4s infinite ease-in-out alternate;
+}
+.avatar-eq .eq-b3 {
+  height: 9px;
+  animation: av-b3 1.2s infinite ease-in-out alternate;
+}
+.avatar-eq .eq-b4 {
+  height: 14px;
+  animation: av-b4 1.3s infinite ease-in-out alternate;
+}
+
+@keyframes av-b1 {
+  0% { transform: scaleY(0.4); }
+  100% { transform: scaleY(1.3); }
+}
+@keyframes av-b2 {
+  0% { transform: scaleY(0.7); }
+  100% { transform: scaleY(1.05); }
+}
+@keyframes av-b3 {
+  0% { transform: scaleY(0.4); }
+  100% { transform: scaleY(1.35); }
+}
+@keyframes av-b4 {
+  0% { transform: scaleY(0.55); }
+  100% { transform: scaleY(1.15); }
 }
 
 .user-info {
@@ -2256,16 +2332,14 @@ input:checked + .slider:before {
   }
 
   .m-top-actions .user-avatar {
-    width: 34px;
-    height: 34px;
-    font-size: 13px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
-    background: linear-gradient(135deg, #1db954, #3b82f6);
-    color: #fff;
+    background: #0f1218;
+    border: 1.5px solid rgba(30, 215, 96, 0.4);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
     cursor: pointer;
   }
 
