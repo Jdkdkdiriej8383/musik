@@ -171,10 +171,20 @@ class PgConnWrapper:
         self._conn.close()
 
 
+def _clean_pg_url(url: str) -> str:
+    if not url:
+        return url
+    # Strip Prisma-specific query params like ?pgbouncer=true or &pgbouncer=true
+    cleaned = re.sub(r'[\?\&]pgbouncer=[^&]*', '', url)
+    if '?' not in cleaned and '&' in cleaned:
+        cleaned = cleaned.replace('&', '?', 1)
+    return cleaned
+
+
 def get_db():
     if USE_POSTGRES:
         try:
-            raw_conn = psycopg2.connect(DATABASE_URL)
+            raw_conn = psycopg2.connect(_clean_pg_url(DATABASE_URL))
             return PgConnWrapper(raw_conn)
         except Exception as e:
             print("Postgres connection failed, using SQLite fallback:", e)

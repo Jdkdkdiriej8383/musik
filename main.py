@@ -4,6 +4,12 @@ import re
 import urllib.parse
 from typing import Optional, Dict, Any, List
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import httpx
 from fastapi import FastAPI, Query, Request, HTTPException, Header, Depends
 from fastapi.responses import StreamingResponse, JSONResponse, FileResponse

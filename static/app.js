@@ -12,14 +12,22 @@ class MusikApp {
     this.token = localStorage.getItem("musik_token") || null;
     this.currentUser = null;
 
-    // Remote Backend URL (Defaults to user's Render cloud backend + Supabase PostgreSQL)
+    // Remote Backend URL Resolver
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
     const defaultRemoteBackend = "https://musik-npzp.onrender.com";
     let storedBackend = localStorage.getItem("musik_api_backend");
-    if (!storedBackend || storedBackend === "null" || storedBackend === "undefined" || storedBackend.trim() === "" || (!storedBackend.startsWith("http://") && !storedBackend.startsWith("https://"))) {
-      storedBackend = defaultRemoteBackend;
-      localStorage.setItem("musik_api_backend", defaultRemoteBackend);
+
+    if (isLocalhost) {
+      // When running on localhost, use the local server directly (which connects to Supabase PostgreSQL!)
+      this.apiBase = "";
+    } else {
+      // When hosted on GitHub Pages or remote host
+      if (!storedBackend || storedBackend === "null" || storedBackend === "undefined" || storedBackend.trim() === "" || (!storedBackend.startsWith("http://") && !storedBackend.startsWith("https://"))) {
+        storedBackend = defaultRemoteBackend;
+        localStorage.setItem("musik_api_backend", defaultRemoteBackend);
+      }
+      this.apiBase = storedBackend || defaultRemoteBackend;
     }
-    this.apiBase = storedBackend || defaultRemoteBackend;
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has("api")) {
       this.apiBase = urlParams.get("api").replace(/\/$/, "");
@@ -298,14 +306,6 @@ class MusikApp {
       return;
     }
 
-    // Local standalone account (no remote backend needed)
-    if (this.token.startsWith("local_token_")) {
-      if (this.currentUser) this.updateUserUI(this.currentUser);
-      return;
-    }
-
-    if (!this.apiBase) return;
-
     try {
       const resp = await fetch(this.api("/api/auth/me"), {
         headers: { "Authorization": `Bearer ${this.token}` }
@@ -345,6 +345,10 @@ class MusikApp {
   // ==========================================
   api(path) {
     if (!path.startsWith("/")) path = "/" + path;
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
+    if (isLocalhost) {
+      return path;
+    }
     const base = this.apiBase || "https://musik-npzp.onrender.com";
     return `${base}${path}`;
   }
@@ -632,76 +636,69 @@ class MusikApp {
     };
 
     try {
-      let remoteSuccess = false;
-      const apiTarget = this.apiBase || "https://musik-npzp.onrender.com";
-      const endpoint = `${apiTarget}${this.authMode === "login" ? "/api/auth/login" : "/api/auth/register"}`;
+      const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
       const payload = this.authMode === "login"
         ? { login: username, password, device_name: "Web Device" }
         : { username, password, email: email || null, display_name: username };
 
+      let resp;
       try {
-        const resp = await fetch(endpoint, {
+        resp = await fetch(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
-
-        // Safe JSON parsing: NEVER crash or expose raw JSON.parse error to user
-        let data = null;
-        try {
-          const text = await resp.text();
-          data = JSON.parse(text);
-        } catch (jsonErr) {
-          data = null;
-        }
-
-        if (!resp.ok) {
-          if (resp.status === 409) {
-            // User already registered in cloud Supabase!
-            if (this.authMode === "register") {
-              this.setAuthMode("login");
-              this.dom.authUsername.value = username;
-              this.dom.authPassword.value = password;
-              throw new Error(`Аккаунт «${username}» уже существует в облаке! Мы переключили вас на «Вход» — нажмите «Войти».`);
-            } else {
-              throw new Error(data && data.detail ? data.detail : "Пользователь с таким именем уже существует");
-            }
-          }
-          if (resp.status === 401 || resp.status === 403) {
-            throw new Error(data && data.detail ? data.detail : "Неверный логин или пароль");
-          }
-          if (resp.status === 502 || resp.status === 503) {
-            throw new Error("Облачный сервер Render просыпается (холодный старт)... Подождите 10-15 секунд и нажмите кнопку снова!");
-          }
-          throw new Error(data && data.detail ? data.detail : `Ошибка авторизации (${resp.status})`);
-        }
-
-        if (!data || !data.token) {
-          throw new Error("Не удалось получить данные сессии от сервера");
-        }
-
-        this.token = data.token;
-        this.currentUser = data.user;
-        localStorage.setItem("musik_token", this.token);
-        localStorage.setItem("musik_user", JSON.stringify(data.user));
-        this.updateUserUI(data.user);
-        this.closeAuthModal();
-        this.showToast(`Добро пожаловать, ${data.user.display_name || data.user.username}!`);
-        await this.syncLibraryFromBackend();
-        this.loadWave(this.waveMode, false);
-        remoteSuccess = true;
-
-      } catch (apiErr) {
-        if (apiErr.message && !apiErr.message.includes("Failed to fetch") && !apiErr.message.includes("NetworkError")) {
-          throw apiErr;
-        }
-        console.warn("Backend unavailable, using local standalone auth:", apiErr);
+      } catch (fetchErr) {
+        throw new Error("Не удалось связаться с сервером. Убедитесь, что сервер запущен!");
       }
 
-      if (!remoteSuccess) {
-        localAuthFallback();
-        this.loadWave(this.waveMode, false);
+      // Safe JSON parsing: NEVER crash or expose raw JSON.parse error to user
+      let data = null;
+      try {
+        const text = await resp.text();
+        data = JSON.parse(text);
+      } catch (jsonErr) {
+        data = null;
       }
+
+      if (!resp.ok) {
+        if (resp.status === 409) {
+          // User already registered in cloud Supabase!
+          if (this.authMode === "register") {
+            this.setAuthMode("login");
+            this.dom.authUsername.value = username;
+            this.dom.authPassword.value = password;
+            throw new Error(`Аккаунт «${username}» уже существует в облаке! Мы переключили вас на «Вход» — нажмите «Войти».`);
+          } else {
+            throw new Error(data && data.detail ? data.detail : "Пользователь с таким именем уже существует");
+          }
+        }
+        if (resp.status === 401 || resp.status === 403) {
+          throw new Error(data && data.detail ? data.detail : "Неверный логин или пароль");
+        }
+        if (resp.status === 502 || resp.status === 503) {
+          throw new Error("Облачный сервер Render временно приостановлен или просыпается... Если запускаете локально, откройте http://localhost:8000");
+        }
+        throw new Error(data && data.detail ? data.detail : `Ошибка авторизации (${resp.status})`);
+      }
+
+      if (!data || !data.token) {
+        throw new Error("Не удалось получить данные сессии от сервера");
+      }
+
+      // Successful cloud authentication via Supabase!
+      this.token = data.token;
+      this.currentUser = data.user;
+      localStorage.setItem("musik_token", this.token);
+      localStorage.setItem("musik_user", JSON.stringify(data.user));
+      // Remove any legacy local tokens
+      localStorage.removeItem("musik_local_users");
+
+      this.updateUserUI(data.user);
+      this.closeAuthModal();
+      this.showToast(`Облачный профиль подключен! Добро пожаловать, ${data.user.display_name || data.user.username}!`);
+      await this.syncLibraryFromBackend();
+      this.loadWave(this.waveMode, false);
 
     } catch (err) {
       this.dom.authErrorMsg.textContent = err.message;
@@ -725,6 +722,7 @@ class MusikApp {
     this.currentUser = null;
     localStorage.removeItem("musik_token");
     localStorage.removeItem("musik_user");
+    localStorage.removeItem("musik_local_users");
     this.updateUserUI(null);
     this.showToast("Вы вышли из аккаунта");
     await this.checkAuthAndSync();
