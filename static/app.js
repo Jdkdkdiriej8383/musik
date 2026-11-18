@@ -12,6 +12,14 @@ class MusikApp {
     this.token = localStorage.getItem("musik_token") || null;
     this.currentUser = null;
 
+    // Automatically purge old offline local tokens so user is always connected to cloud Supabase
+    if (this.token && this.token.startsWith("local_token_")) {
+      localStorage.removeItem("musik_token");
+      localStorage.removeItem("musik_user");
+      localStorage.removeItem("musik_local_users");
+      this.token = null;
+    }
+
     // Remote Backend URL Resolver
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
     const defaultRemoteBackend = "https://musik-npzp.onrender.com";
@@ -493,7 +501,7 @@ class MusikApp {
       if (this.dom.userAvatar) this.dom.userAvatar.classList.add("logged-in");
       if (this.dom.mobileUserAvatar) this.dom.mobileUserAvatar.classList.add("logged-in");
       this.dom.userName.textContent = user.display_name || user.username;
-      this.dom.userStatus.textContent = this.token && this.token.startsWith("local_token_") ? "Локальный профиль" : "Облачная синхронизация";
+      this.dom.userStatus.textContent = "Облачная синхронизация";
       this.dom.userStatus.style.color = "#1db954";
       this.dom.userActionBtn.title = "Выйти из аккаунта";
       this.dom.userActionBtn.innerHTML = `
