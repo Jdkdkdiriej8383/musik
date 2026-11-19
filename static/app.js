@@ -20,25 +20,40 @@ class MusikApp {
       this.token = null;
     }
 
-    // Remote Backend URL Resolver
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    const defaultRemoteBackend = "https://musik-npzp.onrender.com";
+    // Multi-Backend Support & Automatic Failover Engine
+    this.defaultBackends = [
+      "https://musik-5a7a.onrender.com",
+      "https://musik-npzp.onrender.com"
+    ];
     let storedBackend = localStorage.getItem("musik_api_backend");
 
+    // Automatically migrate from old suspended instance if previously stored
+    if (storedBackend === "https://musik-npzp.onrender.com") {
+      storedBackend = "https://musik-5a7a.onrender.com";
+      localStorage.setItem("musik_api_backend", storedBackend);
+    }
+
+    this.backendList = [...this.defaultBackends];
+    if (storedBackend && storedBackend.startsWith("http") && !this.backendList.includes(storedBackend)) {
+      this.backendList.unshift(storedBackend);
+    }
+
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
     if (isLocalhost) {
-      // When running on localhost, use the local server directly (which connects to Supabase PostgreSQL!)
       this.apiBase = "";
     } else {
-      // When hosted on GitHub Pages or remote host
-      if (!storedBackend || storedBackend === "null" || storedBackend === "undefined" || storedBackend.trim() === "" || (!storedBackend.startsWith("http://") && !storedBackend.startsWith("https://"))) {
-        storedBackend = defaultRemoteBackend;
-        localStorage.setItem("musik_api_backend", defaultRemoteBackend);
-      }
-      this.apiBase = storedBackend || defaultRemoteBackend;
+      this.apiBase = storedBackend || this.backendList[0];
     }
+    this.currentBackendIndex = Math.max(0, this.backendList.indexOf(this.apiBase));
+
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.has("api")) {
-      this.apiBase = urlParams.get("api").replace(/\/$/, "");
+      const pApi = urlParams.get("api").replace(/\/$/, "");
+      this.apiBase = pApi;
+      if (!this.backendList.includes(pApi)) {
+        this.backendList.unshift(pApi);
+      }
+      this.currentBackendIndex = this.backendList.indexOf(pApi);
       localStorage.setItem("musik_api_backend", this.apiBase);
     }
 
@@ -315,7 +330,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch(this.api("/api/auth/me"), {
+      const resp = await this.fetchApi("/api/auth/me", {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
       let data = null;
@@ -349,16 +364,108 @@ class MusikApp {
   }
 
   // ==========================================
-  // API URL RESOLVER (FOR GITHUB PAGES & REMOTE BACKENDS)
+  // API URL RESOLVER & MULTI-BACKEND FAILOVER
   // ==========================================
+  switchToNextBackend() {
+    if (!this.backendList || this.backendList.length <= 1) return this.apiBase;
+    this.currentBackendIndex = (this.currentBackendIndex + 1) % this.backendList.length;
+    this.apiBase = this.backendList[this.currentBackendIndex];
+    localStorage.setItem("musik_api_backend", this.apiBase);
+    console.warn(`[Failover] Switched active backend to: ${this.apiBase}`);
+    if (this.dom && this.dom.apiBackendInput) {
+      this.dom.apiBackendInput.value = this.apiBase;
+    }
+    return this.apiBase;
+  }
+
   api(path) {
     if (!path.startsWith("/")) path = "/" + path;
     const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    if (isLocalhost) {
+    if (isLocalhost && !this.forceRemote) {
       return path;
     }
-    const base = this.apiBase || "https://musik-npzp.onrender.com";
+    const base = this.apiBase || (this.backendList && this.backendList[0]) || "https://musik-5a7a.onrender.com";
     return `${base}${path}`;
+  }
+
+  async fetchApi(path, options = {}) {
+    let apiPath = path;
+    if (this.backendList) {
+      for (const b of this.backendList) {
+        if (apiPath.startsWith(b)) {
+          apiPath = apiPath.substring(b.length);
+          break;
+        }
+      }
+    }
+    if (!apiPath.startsWith("/")) apiPath = "/" + apiPath;
+
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
+    if (isLocalhost && !this.forceRemote) {
+      try {
+        const resp = await fetch(apiPath, options);
+        if (resp.status < 500) {
+          return resp;
+        }
+      } catch (e) {
+        console.warn("Local backend unreachable, trying remote backends...", e);
+      }
+    }
+
+    const backends = [...(this.backendList || ["https://musik-5a7a.onrender.com"])];
+    let lastError = null;
+    let switched = false;
+
+    for (let attempt = 0; attempt < backends.length; attempt++) {
+      const idx = (this.currentBackendIndex + attempt) % backends.length;
+      const targetBase = backends[idx];
+      const targetUrl = `${targetBase}${apiPath}`;
+
+      try {
+        const controller = new AbortController();
+        const timeoutMs = options.timeout || 12000;
+        const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+        const fetchOpts = { ...options };
+        if (!fetchOpts.signal) {
+          fetchOpts.signal = controller.signal;
+        }
+
+        const resp = await fetch(targetUrl, fetchOpts);
+        clearTimeout(timer);
+
+        // Render & cloud sleep / suspended error statuses (502, 503, 504)
+        if (resp.status >= 502 && resp.status <= 504) {
+          console.warn(`[Failover] Backend ${targetBase} returned HTTP ${resp.status}. Trying next backend...`);
+          switched = true;
+          continue;
+        }
+
+        // Active server confirmed
+        if (this.currentBackendIndex !== idx) {
+          this.currentBackendIndex = idx;
+          this.apiBase = targetBase;
+          localStorage.setItem("musik_api_backend", this.apiBase);
+          if (this.dom && this.dom.apiBackendInput) {
+            this.dom.apiBackendInput.value = this.apiBase;
+          }
+          if (switched) {
+            const name = targetBase.replace(/^https?:\/\//, "");
+            this.showToast(`🌐 Переключено на сервер: ${name}`, 2500);
+          }
+        }
+        return resp;
+      } catch (err) {
+        console.warn(`[Failover] Failed to connect to ${targetBase}:`, err.message || err);
+        lastError = err;
+        switched = true;
+      }
+    }
+
+    if (switched && this.backendList.length > 1) {
+      this.switchToNextBackend();
+    }
+    throw lastError || new Error("Все доступные серверы бэкенда временно недоступны");
   }
 
   // ==========================================
@@ -440,7 +547,7 @@ class MusikApp {
   async syncLibraryFromBackend() {
     if (!this.token) return;
     try {
-      const resp = await fetch(this.api("/api/user/library"), {
+      const resp = await this.fetchApi("/api/user/library", {
         headers: { "Authorization": `Bearer ${this.token}` }
       });
       if (resp.ok) {
@@ -644,20 +751,20 @@ class MusikApp {
     };
 
     try {
-      const endpoint = this.api(this.authMode === "login" ? "/api/auth/login" : "/api/auth/register");
+      const endpoint = this.authMode === "login" ? "/api/auth/login" : "/api/auth/register";
       const payload = this.authMode === "login"
         ? { login: username, password, device_name: "Web Device" }
         : { username, password, email: email || null, display_name: username };
 
       let resp;
       try {
-        resp = await fetch(endpoint, {
+        resp = await this.fetchApi(endpoint, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload)
         });
       } catch (fetchErr) {
-        throw new Error("Не удалось связаться с сервером. Убедитесь, что сервер запущен!");
+        throw new Error("Не удалось связаться с сервером. Проверьте подключение к бэкенду!");
       }
 
       // Safe JSON parsing: NEVER crash or expose raw JSON.parse error to user
@@ -720,7 +827,7 @@ class MusikApp {
   async logout() {
     if (this.token) {
       try {
-        await fetch(this.api("/api/auth/logout"), {
+        await this.fetchApi("/api/auth/logout", {
           method: "POST",
           headers: { "Authorization": `Bearer ${this.token}` }
         });
@@ -754,7 +861,7 @@ class MusikApp {
       if (this.dom.startWaveBtnText) {
         this.dom.startWaveBtnText.textContent = "Загрузка...";
       }
-      const resp = await fetch(this.api(`/api/stream/wave?mode=${mode}&limit=15&country=${this.dom.countrySelect.value}`), {
+      const resp = await this.fetchApi(`/api/stream/wave?mode=${mode}&limit=15&country=${this.dom.countrySelect.value}`, {
         headers
       });
       if (!resp.ok) {
@@ -876,7 +983,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch(this.api(`/api/stream/wave?mode=${this.waveMode}&limit=10&country=${this.dom.countrySelect.value}`), {
+      const resp = await this.fetchApi(`/api/stream/wave?mode=${this.waveMode}&limit=10&country=${this.dom.countrySelect.value}`, {
         headers
       });
       const data = await resp.json();
@@ -975,7 +1082,7 @@ class MusikApp {
         headers["Authorization"] = `Bearer ${this.token}`;
       }
 
-      const resp = await fetch(this.api("/api/import/playlist"), {
+      const resp = await this.fetchApi("/api/import/playlist", {
         method: "POST",
         headers,
         body: JSON.stringify({ url: inputVal })
@@ -1051,7 +1158,7 @@ class MusikApp {
       this.favorites = this.favorites.filter(t => !this.isTrackMatch(t, track));
       if (this.token) {
         try {
-          await fetch(this.api(`/api/user/like/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`), {
+          await this.fetchApi(`/api/user/like/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`, {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${this.token}` }
           });
@@ -1073,7 +1180,7 @@ class MusikApp {
 
       if (this.token) {
         try {
-          await fetch(this.api("/api/user/like"), {
+          await this.fetchApi("/api/user/like", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1115,7 +1222,7 @@ class MusikApp {
       this.dislikes = this.dislikes.filter(t => !this.isTrackMatch(t, track));
       if (this.token) {
         try {
-          await fetch(this.api(`/api/user/dislike/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`), {
+          await this.fetchApi(`/api/user/dislike/${encodeURIComponent(track.id)}?artist=${encodeURIComponent(track.artist || '')}&title=${encodeURIComponent(track.title || '')}`, {
             method: "DELETE",
             headers: { "Authorization": `Bearer ${this.token}` }
           });
@@ -1137,7 +1244,7 @@ class MusikApp {
 
       if (this.token) {
         try {
-          await fetch(this.api("/api/user/dislike"), {
+          await this.fetchApi("/api/user/dislike", {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -1329,6 +1436,23 @@ class MusikApp {
         console.warn("Audio playback failed while offline, triggering fallback...");
         await this.activateOfflineFallback();
       } else {
+        // Multi-backend stream failover retry
+        if (this.currentTrack && !this.currentTrack.stream_url && this.backendList && this.backendList.length > 1 && !this._isAudioRetrying) {
+          this._isAudioRetrying = true;
+          this.switchToNextBackend();
+          const retryStreamUrl = this.api(`/api/stream?title=${encodeURIComponent(this.currentTrack.title)}&artist=${encodeURIComponent(this.currentTrack.artist)}`);
+          console.warn("[Failover] Audio error on active backend. Retrying stream with:", retryStreamUrl);
+          this.showToast(`Переключаемся на резервный сервер...`, 2000);
+          this.audio.src = retryStreamUrl;
+          try {
+            await this.audio.play();
+            this._isAudioRetrying = false;
+            return;
+          } catch (retryErr) {
+            console.warn("[Failover] Stream retry failed:", retryErr);
+            this._isAudioRetrying = false;
+          }
+        }
         this.showToast("Ошибка воспроизведения потока трека");
       }
       this.isBuffering = false;
@@ -1565,7 +1689,7 @@ class MusikApp {
   async recordHistory(track, listenedSeconds, skipped) {
     if (!this.token) return;
     try {
-      await fetch(this.api("/api/user/history"), {
+      await this.fetchApi("/api/user/history", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1620,7 +1744,7 @@ class MusikApp {
     this.dom.lyricsBody.innerHTML = '<div class="lyrics-loading">Поиск текста песни...</div>';
 
     try {
-      const resp = await fetch(this.api(`/api/lyrics?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${track.duration || 0}`));
+      const resp = await this.fetchApi(`/api/lyrics?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}&duration=${track.duration || 0}`);
       const data = await resp.json();
 
       if (data.syncedLyrics) {
@@ -1793,7 +1917,7 @@ class MusikApp {
     let loaded = false;
     if (this.apiBase) {
       try {
-        const resp = await fetch(this.api(`/api/trending?country=${country}&limit=30`));
+        const resp = await this.fetchApi(`/api/trending?country=${country}&limit=30`);
         const ctype = resp.headers.get("content-type") || "";
         if (ctype.includes("application/json")) {
           const data = await resp.json();
@@ -1889,7 +2013,7 @@ class MusikApp {
     let results = [];
     if (this.apiBase) {
       try {
-        const resp = await fetch(this.api(`/api/search?q=${encodeURIComponent(query)}&limit=30`));
+        const resp = await this.fetchApi(`/api/search?q=${encodeURIComponent(query)}&limit=30`);
         const ctype = resp.headers.get("content-type") || "";
         if (ctype.includes("application/json")) {
           const data = await resp.json();
@@ -2406,8 +2530,42 @@ class MusikApp {
       this.dom.saveApiBackendBtn.addEventListener("click", () => {
         const val = (this.dom.apiBackendInput.value || "").trim().replace(/\/$/, "");
         this.apiBase = val;
+        if (val && !this.backendList.includes(val)) {
+          this.backendList.unshift(val);
+        }
+        this.currentBackendIndex = this.backendList.indexOf(val);
         localStorage.setItem("musik_api_backend", val);
         this.showToast(val ? `🌐 Бэкенд подключен: ${val}` : "Используется текущий хост");
+        this.checkAuthAndSync();
+        this.loadWave(this.waveMode, false);
+      });
+    }
+
+    const btn5a7a = document.getElementById("setBackend5a7a");
+    if (btn5a7a) {
+      btn5a7a.addEventListener("click", () => {
+        const target = "https://musik-5a7a.onrender.com";
+        this.apiBase = target;
+        if (!this.backendList.includes(target)) this.backendList.unshift(target);
+        this.currentBackendIndex = this.backendList.indexOf(target);
+        if (this.dom.apiBackendInput) this.dom.apiBackendInput.value = target;
+        localStorage.setItem("musik_api_backend", target);
+        this.showToast("🟢 Выбран основной сервер musik-5a7a");
+        this.checkAuthAndSync();
+        this.loadWave(this.waveMode, false);
+      });
+    }
+
+    const btnNpzp = document.getElementById("setBackendNpzp");
+    if (btnNpzp) {
+      btnNpzp.addEventListener("click", () => {
+        const target = "https://musik-npzp.onrender.com";
+        this.apiBase = target;
+        if (!this.backendList.includes(target)) this.backendList.push(target);
+        this.currentBackendIndex = this.backendList.indexOf(target);
+        if (this.dom.apiBackendInput) this.dom.apiBackendInput.value = target;
+        localStorage.setItem("musik_api_backend", target);
+        this.showToast("🟡 Выбран сервер musik-npzp");
         this.checkAuthAndSync();
         this.loadWave(this.waveMode, false);
       });
@@ -2761,7 +2919,7 @@ class MusikApp {
     }
 
     try {
-      const resp = await fetch(this.api("/api/settings/yandex-token"), {
+      const resp = await this.fetchApi("/api/settings/yandex-token", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token })
