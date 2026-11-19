@@ -38,10 +38,15 @@ class MusikApp {
       this.backendList.unshift(storedBackend);
     }
 
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    if (isLocalhost) {
+    // Determine if running directly from an active local Python server (port 8000)
+    const isPort8000 = window.location.port === "8000";
+    const isLocalHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const isLocalServer = isLocalHost && isPort8000;
+
+    if (isLocalServer) {
       this.apiBase = "";
     } else {
+      // For GitHub Pages, file:// protocol, Live Server, or other hosts, ALWAYS use the active remote backend
       this.apiBase = storedBackend || this.backendList[0];
     }
     this.currentBackendIndex = Math.max(0, this.backendList.indexOf(this.apiBase));
@@ -370,56 +375,104 @@ class MusikApp {
   // ==========================================
   // AUTONOMOUS MULTI-BACKEND ENGINE & FAILOVER
   // ==========================================
-  async detectAndSelectBestBackend() {
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    if (isLocalhost && !this.forceRemote) {
+  async detectAndSelectBestBackend(force = false) {
+    const isPort8000 = window.location.port === "8000";
+    const isLocalHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    const isLocalServer = isLocalHost && isPort8000;
+
+    if (isLocalServer && !this.forceRemote) {
       this.apiBase = "";
-      this.updateBackendStatusUI();
+      this.updateBackendStatusUI("Локальный хост (localhost:8000)", true);
       return;
     }
 
-    const candidates = [...(this.backendList || ["https://musik-5a7a.onrender.com", "https://musik-npzp.onrender.com"])];
-    
-    // Concurrent race: ping all servers with short timeout to pick the fastest responsive one
-    const pings = candidates.map(async (url) => {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 3500);
-      try {
-        const res = await fetch(url + "/", { method: "GET", signal: controller.signal, cache: "no-store" });
-        clearTimeout(timer);
-        if (res.status === 200) {
-          return url;
-        }
-        throw new Error(`Status ${res.status}`);
-      } catch (err) {
-        clearTimeout(timer);
-        throw err;
-      }
-    });
-
-    try {
-      const fastestAlive = await Promise.any(pings);
-      if (fastestAlive) {
-        const changed = this.apiBase !== fastestAlive;
-        this.apiBase = fastestAlive;
-        this.currentBackendIndex = this.backendList.indexOf(fastestAlive);
-        localStorage.setItem("musik_api_backend", fastestAlive);
-        if (changed) {
-          console.log(`⚡ [AutoBackend] Автоматически выбран работающий сервер: ${fastestAlive}`);
-        }
-      }
-    } catch (allFailed) {
-      console.warn("⚠️ [AutoBackend] Быстрый пинг не вернул ответ, автопереключение сработает по первому запросу");
+    const label = document.getElementById("activeBackendLabel");
+    if (label && force) {
+      label.textContent = "Проверка серверов...";
     }
 
-    this.updateBackendStatusUI();
+    const candidates = [...(this.backendList || ["https://musik-5a7a.onrender.com", "https://musik-npzp.onrender.com"])];
+    let bestBackend = null;
+    let minLatency = 99999;
+
+    const checkServer = async (baseUrl) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 9000);
+      const start = Date.now();
+      try {
+        const res = await fetch(`${baseUrl}/api/settings/yandex-token`, {
+          method: "GET",
+          signal: controller.signal,
+          cache: "no-store"
+        });
+        clearTimeout(timer);
+        const latency = Date.now() - start;
+        if (res.status === 200 || res.status === 401) {
+          return { url: baseUrl, latency, ok: true };
+        }
+        throw new Error(`HTTP ${res.status}`);
+      } catch (err) {
+        clearTimeout(timer);
+        try {
+          const c2 = new AbortController();
+          const t2 = setTimeout(() => c2.abort(), 6000);
+          const r2 = await fetch(`${baseUrl}/`, { method: "HEAD", signal: c2.signal, cache: "no-store" });
+          clearTimeout(t2);
+          if (r2.status === 200) {
+            return { url: baseUrl, latency: Date.now() - start, ok: true };
+          }
+        } catch (e2) {}
+        throw err;
+      }
+    };
+
+    try {
+      const results = await Promise.allSettled(candidates.map(url => checkServer(url)));
+      const alive = results
+        .filter(r => r.status === "fulfilled" && r.value.ok)
+        .map(r => r.value)
+        .sort((a, b) => a.latency - b.latency);
+
+      if (alive.length > 0) {
+        bestBackend = alive[0].url;
+        minLatency = alive[0].latency;
+      }
+    } catch (e) {
+      console.warn("Probe error:", e);
+    }
+
+    if (bestBackend) {
+      this.apiBase = bestBackend;
+      this.currentBackendIndex = this.backendList.indexOf(bestBackend);
+      localStorage.setItem("musik_api_backend", bestBackend);
+      console.log(`⚡ [AutoBackend] Активен сервер: ${bestBackend} (${minLatency} мс)`);
+      this.updateBackendStatusUI(bestBackend, true, `${minLatency} мс`);
+    } else {
+      // Default immediately to primary if probe failed or timed out
+      if (!this.apiBase || this.apiBase === "") {
+        this.apiBase = this.defaultBackends[0];
+      }
+      this.updateBackendStatusUI(this.apiBase, true);
+    }
   }
 
-  updateBackendStatusUI() {
+  updateBackendStatusUI(backendUrl = this.apiBase, isOnline = true, pingText = "") {
     const label = document.getElementById("activeBackendLabel");
+    const indicator = document.getElementById("backendStatusIndicator");
+    const pingDetails = document.getElementById("backendPingDetails");
+
+    const url = backendUrl || this.apiBase || (this.defaultBackends && this.defaultBackends[0]) || "https://musik-5a7a.onrender.com";
+    const clean = url ? url.replace(/^https?:\/\//, "") : "Локальный хост";
+
     if (label) {
-      const clean = this.apiBase ? this.apiBase.replace(/^https?:\/\//, "") : "Локальный хост";
       label.textContent = clean;
+    }
+    if (indicator) {
+      indicator.style.background = isOnline ? "#1db954" : "#ffaa00";
+      indicator.style.boxShadow = isOnline ? "0 0 10px #1db954" : "0 0 10px #ffaa00";
+    }
+    if (pingDetails && pingText) {
+      pingDetails.innerHTML = `Ответ: <strong style="color: ${isOnline ? '#1db954' : '#ffaa00'};">${isOnline ? 'Онлайн' : 'Проверка'} (${pingText})</strong> • Резервный пул активен`;
     }
   }
 
@@ -439,14 +492,15 @@ class MusikApp {
     this.apiBase = this.backendList[this.currentBackendIndex];
     localStorage.setItem("musik_api_backend", this.apiBase);
     console.warn(`⚡ [AutoBackend] Автономно переключено на: ${this.apiBase}`);
-    this.updateBackendStatusUI();
+    this.updateBackendStatusUI(this.apiBase, true);
     return this.apiBase;
   }
 
   api(path) {
     if (!path.startsWith("/")) path = "/" + path;
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    if (isLocalhost && !this.forceRemote) {
+    const isPort8000 = window.location.port === "8000";
+    const isLocalHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalHost && isPort8000 && !this.forceRemote) {
       return path;
     }
     const base = this.apiBase || (this.backendList && this.backendList[0]) || "https://musik-5a7a.onrender.com";
@@ -495,8 +549,9 @@ class MusikApp {
     }
     if (!apiPath.startsWith("/")) apiPath = "/" + apiPath;
 
-    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
-    if (isLocalhost && !this.forceRemote) {
+    const isPort8000 = window.location.port === "8000";
+    const isLocalHost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
+    if (isLocalHost && isPort8000 && !this.forceRemote) {
       try {
         const resp = await fetch(apiPath, options);
         if (resp.status < 500) {
@@ -517,7 +572,7 @@ class MusikApp {
 
       try {
         const controller = new AbortController();
-        const timeoutMs = options.timeout || 6500;
+        const timeoutMs = options.timeout || 12000;
         const timer = setTimeout(() => controller.abort(), timeoutMs);
 
         const fetchOpts = { ...options };
@@ -535,13 +590,15 @@ class MusikApp {
         }
 
         // Active server answered successfully
-        if (this.currentBackendIndex !== idx) {
+        if (this.apiBase !== targetBase) {
           this.currentBackendIndex = idx;
           this.apiBase = targetBase;
           localStorage.setItem("musik_api_backend", this.apiBase);
-          this.updateBackendStatusUI();
+          this.updateBackendStatusUI(targetBase, true);
           const name = targetBase.replace(/^https?:\/\//, "");
           this.showToast(`⚡ Автоматически переключено на сервер: ${name}`, 2500);
+        } else {
+          this.updateBackendStatusUI(targetBase, true);
         }
         return resp;
       } catch (err) {
@@ -2618,6 +2675,17 @@ class MusikApp {
       this.dom.closeSettingsModalBtn.addEventListener("click", () => this.closeSettingsModal());
     }
     this.updateBackendStatusUI();
+
+    const recheckBtn = document.getElementById("recheckBackendBtn");
+    if (recheckBtn) {
+      recheckBtn.addEventListener("click", async () => {
+        recheckBtn.disabled = true;
+        recheckBtn.textContent = "Проверка...";
+        await this.detectAndSelectBestBackend(true);
+        recheckBtn.disabled = false;
+        recheckBtn.textContent = "Проверить связь";
+      });
+    }
     if (this.dom.saveSettingsCloseBtn) {
       this.dom.saveSettingsCloseBtn.addEventListener("click", () => this.closeSettingsModal());
     }

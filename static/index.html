@@ -765,17 +765,17 @@
           <div class="settings-group" style="margin-top: 24px;">
             <h4 class="settings-group-title">⚡ Автономный выбор бэкенда (Failover)</h4>
             <p class="modal-info-text">
-              Проект сам в реальном времени проверяет доступность серверов и автоматически переключается между ними без вашего участия:
+              Система автоматически опрашивает серверы и держит подключение к рабочему:
             </p>
             <div id="backendAutoStatusBadge" style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 12px 16px; background: rgba(29, 185, 84, 0.12); border: 1px solid rgba(29, 185, 84, 0.35); border-radius: 10px;">
               <div style="display: flex; align-items: center; gap: 10px;">
-                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #1db954; box-shadow: 0 0 10px #1db954;"></span>
-                <span style="font-size: 13px;">Активен: <strong id="activeBackendLabel" style="color: #fff;">Определение...</strong></span>
+                <span id="backendStatusIndicator" style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #1db954; box-shadow: 0 0 10px #1db954;"></span>
+                <span style="font-size: 13px;">Активен: <strong id="activeBackendLabel" style="color: #fff;">musik-5a7a.onrender.com</strong></span>
               </div>
-              <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(29, 185, 84, 0.25); color: #1db954; font-weight: 600;">Автоматически</span>
+              <button type="button" id="recheckBackendBtn" class="btn btn-secondary btn-sm" style="font-size: 11px; padding: 4px 10px; border-radius: 6px; cursor: pointer;">Проверить связь</button>
             </div>
-            <p class="modal-info-text" style="margin-top: 8px; font-size: 11px; color: #888;">
-              Серверы в пуле автопереключения: <code>musik-5a7a.onrender.com</code>, <code>musik-npzp.onrender.com</code>.
+            <p id="backendPingDetails" class="modal-info-text" style="margin-top: 8px; font-size: 11px; color: #888;">
+              Резервные серверы: <code>musik-5a7a.onrender.com</code>, <code>musik-npzp.onrender.com</code>.
             </p>
           </div>
 

@@ -59,8 +59,14 @@ def get_current_user(authorization: Optional[str] = Header(None)) -> Optional[Di
 
 
 # ==========================================
-# 0. ROOT & STATIC FILES
+# 0. ROOT & HEALTHCHECK ENDPOINTS
 # ==========================================
+@app.get("/api/health")
+@app.get("/health")
+async def health_check():
+    return {"status": "ok", "service": "musik", "active": True}
+
+
 @app.get("/")
 async def get_index():
     index_file = os.path.join(STATIC_DIR, "index.html")
