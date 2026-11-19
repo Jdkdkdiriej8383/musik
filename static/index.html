@@ -761,20 +761,22 @@
             </div>
           </div>
 
-          <!-- BACKEND URL FOR GITHUB PAGES -->
+          <!-- AUTONOMOUS MULTI-BACKEND FAILOVER STATUS -->
           <div class="settings-group" style="margin-top: 24px;">
-            <h4 class="settings-group-title">🌐 Адрес бэкенда (мульти-серверный режим)</h4>
+            <h4 class="settings-group-title">⚡ Автономный выбор бэкенда (Failover)</h4>
             <p class="modal-info-text">
-              Включено автоматическое переключение: при недоступности основного сервера плеер мгновенно переходит на резервный:
+              Проект сам в реальном времени проверяет доступность серверов и автоматически переключается между ними без вашего участия:
             </p>
-            <div style="display: flex; gap: 8px; margin-top: 10px;">
-              <input type="text" id="apiBackendInput" class="form-input" style="flex: 1; padding: 8px 12px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.15); border-radius: 8px; color: #fff;" placeholder="https://ваш-сервер.onrender.com" />
-              <button class="btn btn-secondary btn-sm" id="saveApiBackendBtn">Сохранить</button>
+            <div id="backendAutoStatusBadge" style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding: 12px 16px; background: rgba(29, 185, 84, 0.12); border: 1px solid rgba(29, 185, 84, 0.35); border-radius: 10px;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <span style="display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: #1db954; box-shadow: 0 0 10px #1db954;"></span>
+                <span style="font-size: 13px;">Активен: <strong id="activeBackendLabel" style="color: #fff;">Определение...</strong></span>
+              </div>
+              <span style="font-size: 11px; padding: 2px 8px; border-radius: 12px; background: rgba(29, 185, 84, 0.25); color: #1db954; font-weight: 600;">Автоматически</span>
             </div>
-            <div style="display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap;">
-              <button type="button" class="btn btn-sm" id="setBackend5a7a" style="background: rgba(29, 185, 84, 0.2); border: 1px solid #1db954; color: #fff; font-size: 11px; padding: 5px 10px; border-radius: 6px; cursor: pointer;">🟢 musik-5a7a (Основной)</button>
-              <button type="button" class="btn btn-sm" id="setBackendNpzp" style="background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.2); color: #ccc; font-size: 11px; padding: 5px 10px; border-radius: 6px; cursor: pointer;">🟡 musik-npzp (Резерв)</button>
-            </div>
+            <p class="modal-info-text" style="margin-top: 8px; font-size: 11px; color: #888;">
+              Серверы в пуле автопереключения: <code>musik-5a7a.onrender.com</code>, <code>musik-npzp.onrender.com</code>.
+            </p>
           </div>
 
           <div class="modal-actions" style="margin-top: 24px;">

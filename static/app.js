@@ -290,6 +290,10 @@ class MusikApp {
     this.setupNetworkAndOfflineListeners();
     this.setVolume(this.volume);
 
+    // 0. Autonomous backend discovery: race candidate servers & auto-select alive one
+    await this.detectAndSelectBestBackend();
+    this.setupBackgroundHealthCheck();
+
     // 1. Authenticate user & sync library
     await this.checkAuthAndSync();
 
@@ -364,17 +368,78 @@ class MusikApp {
   }
 
   // ==========================================
-  // API URL RESOLVER & MULTI-BACKEND FAILOVER
+  // AUTONOMOUS MULTI-BACKEND ENGINE & FAILOVER
   // ==========================================
+  async detectAndSelectBestBackend() {
+    const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1" || window.location.hostname === "";
+    if (isLocalhost && !this.forceRemote) {
+      this.apiBase = "";
+      this.updateBackendStatusUI();
+      return;
+    }
+
+    const candidates = [...(this.backendList || ["https://musik-5a7a.onrender.com", "https://musik-npzp.onrender.com"])];
+    
+    // Concurrent race: ping all servers with short timeout to pick the fastest responsive one
+    const pings = candidates.map(async (url) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 3500);
+      try {
+        const res = await fetch(url + "/", { method: "GET", signal: controller.signal, cache: "no-store" });
+        clearTimeout(timer);
+        if (res.status === 200) {
+          return url;
+        }
+        throw new Error(`Status ${res.status}`);
+      } catch (err) {
+        clearTimeout(timer);
+        throw err;
+      }
+    });
+
+    try {
+      const fastestAlive = await Promise.any(pings);
+      if (fastestAlive) {
+        const changed = this.apiBase !== fastestAlive;
+        this.apiBase = fastestAlive;
+        this.currentBackendIndex = this.backendList.indexOf(fastestAlive);
+        localStorage.setItem("musik_api_backend", fastestAlive);
+        if (changed) {
+          console.log(`⚡ [AutoBackend] Автоматически выбран работающий сервер: ${fastestAlive}`);
+        }
+      }
+    } catch (allFailed) {
+      console.warn("⚠️ [AutoBackend] Быстрый пинг не вернул ответ, автопереключение сработает по первому запросу");
+    }
+
+    this.updateBackendStatusUI();
+  }
+
+  updateBackendStatusUI() {
+    const label = document.getElementById("activeBackendLabel");
+    if (label) {
+      const clean = this.apiBase ? this.apiBase.replace(/^https?:\/\//, "") : "Локальный хост";
+      label.textContent = clean;
+    }
+  }
+
+  setupBackgroundHealthCheck() {
+    // Proactively verify server availability every 60s & when user switches back to tab
+    setInterval(() => this.detectAndSelectBestBackend(), 60000);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        this.detectAndSelectBestBackend();
+      }
+    });
+  }
+
   switchToNextBackend() {
     if (!this.backendList || this.backendList.length <= 1) return this.apiBase;
     this.currentBackendIndex = (this.currentBackendIndex + 1) % this.backendList.length;
     this.apiBase = this.backendList[this.currentBackendIndex];
     localStorage.setItem("musik_api_backend", this.apiBase);
-    console.warn(`[Failover] Switched active backend to: ${this.apiBase}`);
-    if (this.dom && this.dom.apiBackendInput) {
-      this.dom.apiBackendInput.value = this.apiBase;
-    }
+    console.warn(`⚡ [AutoBackend] Автономно переключено на: ${this.apiBase}`);
+    this.updateBackendStatusUI();
     return this.apiBase;
   }
 
@@ -386,6 +451,36 @@ class MusikApp {
     }
     const base = this.apiBase || (this.backendList && this.backendList[0]) || "https://musik-5a7a.onrender.com";
     return `${base}${path}`;
+  }
+
+  clearStreamWatchdog() {
+    if (this._streamWatchdog) {
+      clearTimeout(this._streamWatchdog);
+      this._streamWatchdog = null;
+    }
+  }
+
+  startStreamWatchdog(track) {
+    this.clearStreamWatchdog();
+    if (!this.backendList || this.backendList.length <= 1) return;
+
+    // If audio is stuck buffering for > 6 seconds on active backend, auto-failover to backup
+    this._streamWatchdog = setTimeout(async () => {
+      if (this.isBuffering && this.currentTrack && !this.currentTrack.stream_url && !this._isAudioRetrying) {
+        console.warn("⚡ [AutoBackend] Поток завис (>6 сек). Плеер сам переключается на резервный сервер...");
+        this._isAudioRetrying = true;
+        this.switchToNextBackend();
+        const retryStreamUrl = this.api(`/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
+        this.audio.src = retryStreamUrl;
+        try {
+          await this.audio.play();
+        } catch (e) {
+          console.warn("⚡ [AutoBackend] Резервная попытка стрима:", e);
+        } finally {
+          this._isAudioRetrying = false;
+        }
+      }
+    }, 6000);
   }
 
   async fetchApi(path, options = {}) {
@@ -412,9 +507,8 @@ class MusikApp {
       }
     }
 
-    const backends = [...(this.backendList || ["https://musik-5a7a.onrender.com"])];
+    const backends = [...(this.backendList || ["https://musik-5a7a.onrender.com", "https://musik-npzp.onrender.com"])];
     let lastError = null;
-    let switched = false;
 
     for (let attempt = 0; attempt < backends.length; attempt++) {
       const idx = (this.currentBackendIndex + attempt) % backends.length;
@@ -423,7 +517,7 @@ class MusikApp {
 
       try {
         const controller = new AbortController();
-        const timeoutMs = options.timeout || 12000;
+        const timeoutMs = options.timeout || 6500;
         const timer = setTimeout(() => controller.abort(), timeoutMs);
 
         const fetchOpts = { ...options };
@@ -434,35 +528,29 @@ class MusikApp {
         const resp = await fetch(targetUrl, fetchOpts);
         clearTimeout(timer);
 
-        // Render & cloud sleep / suspended error statuses (502, 503, 504)
-        if (resp.status >= 502 && resp.status <= 504) {
-          console.warn(`[Failover] Backend ${targetBase} returned HTTP ${resp.status}. Trying next backend...`);
-          switched = true;
+        // Server down, suspended or error (500, 502, 503, 504) -> auto-failover!
+        if (resp.status >= 500 && resp.status <= 504) {
+          console.warn(`⚡ [AutoBackend] Сервер ${targetBase} вернул HTTP ${resp.status}. Сам переключаюсь на резервный...`);
           continue;
         }
 
-        // Active server confirmed
+        // Active server answered successfully
         if (this.currentBackendIndex !== idx) {
           this.currentBackendIndex = idx;
           this.apiBase = targetBase;
           localStorage.setItem("musik_api_backend", this.apiBase);
-          if (this.dom && this.dom.apiBackendInput) {
-            this.dom.apiBackendInput.value = this.apiBase;
-          }
-          if (switched) {
-            const name = targetBase.replace(/^https?:\/\//, "");
-            this.showToast(`🌐 Переключено на сервер: ${name}`, 2500);
-          }
+          this.updateBackendStatusUI();
+          const name = targetBase.replace(/^https?:\/\//, "");
+          this.showToast(`⚡ Автоматически переключено на сервер: ${name}`, 2500);
         }
         return resp;
       } catch (err) {
-        console.warn(`[Failover] Failed to connect to ${targetBase}:`, err.message || err);
+        console.warn(`⚡ [AutoBackend] Ошибка соединения с ${targetBase}:`, err.message || err);
         lastError = err;
-        switched = true;
       }
     }
 
-    if (switched && this.backendList.length > 1) {
+    if (this.backendList.length > 1) {
       this.switchToNextBackend();
     }
     throw lastError || new Error("Все доступные серверы бэкенда временно недоступны");
@@ -1379,12 +1467,14 @@ class MusikApp {
     });
 
     this.audio.addEventListener("playing", () => {
+      this.clearStreamWatchdog();
       this.isBuffering = false;
       this.isPlaying = true;
       this.updatePlayState();
     });
 
     this.audio.addEventListener("pause", () => {
+      this.clearStreamWatchdog();
       this.isPlaying = false;
       this.updatePlayState();
     });
@@ -1392,6 +1482,9 @@ class MusikApp {
     this.audio.addEventListener("timeupdate", () => {
       if (!this.audio.duration) return;
       const current = this.audio.currentTime;
+      if (current > 0) {
+        this.clearStreamWatchdog();
+      }
       const duration = this.audio.duration;
       const pct = (current / duration) * 100;
       this.dom.progressFill.style.width = `${pct}%`;
@@ -1431,6 +1524,7 @@ class MusikApp {
     });
 
     this.audio.addEventListener("error", async (e) => {
+      this.clearStreamWatchdog();
       console.error("Audio error:", e);
       if (!navigator.onLine) {
         console.warn("Audio playback failed while offline, triggering fallback...");
@@ -1441,15 +1535,14 @@ class MusikApp {
           this._isAudioRetrying = true;
           this.switchToNextBackend();
           const retryStreamUrl = this.api(`/api/stream?title=${encodeURIComponent(this.currentTrack.title)}&artist=${encodeURIComponent(this.currentTrack.artist)}`);
-          console.warn("[Failover] Audio error on active backend. Retrying stream with:", retryStreamUrl);
-          this.showToast(`Переключаемся на резервный сервер...`, 2000);
+          console.warn("⚡ [AutoBackend] Ошибка потока. Автоматический перезапуск с резервного сервера:", retryStreamUrl);
           this.audio.src = retryStreamUrl;
           try {
             await this.audio.play();
             this._isAudioRetrying = false;
             return;
           } catch (retryErr) {
-            console.warn("[Failover] Stream retry failed:", retryErr);
+            console.warn("⚡ [AutoBackend] Ошибка резервного потока:", retryErr);
             this._isAudioRetrying = false;
           }
         }
@@ -1514,7 +1607,8 @@ class MusikApp {
       // Direct audio stream (from iTunes / web stream / cached URL)
       this.audio.src = track.stream_url;
     } else if (this.apiBase) {
-      // ONLINE STREAMING via remote backend
+      // ONLINE STREAMING via remote backend with automatic watchdog failover
+      this.startStreamWatchdog(track);
       const streamUrl = this.api(`/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`);
       this.audio.src = streamUrl;
     } else if (navigator.onLine) {
@@ -2523,53 +2617,7 @@ class MusikApp {
     if (this.dom.closeSettingsModalBtn) {
       this.dom.closeSettingsModalBtn.addEventListener("click", () => this.closeSettingsModal());
     }
-    if (this.dom.apiBackendInput) {
-      this.dom.apiBackendInput.value = this.apiBase;
-    }
-    if (this.dom.saveApiBackendBtn) {
-      this.dom.saveApiBackendBtn.addEventListener("click", () => {
-        const val = (this.dom.apiBackendInput.value || "").trim().replace(/\/$/, "");
-        this.apiBase = val;
-        if (val && !this.backendList.includes(val)) {
-          this.backendList.unshift(val);
-        }
-        this.currentBackendIndex = this.backendList.indexOf(val);
-        localStorage.setItem("musik_api_backend", val);
-        this.showToast(val ? `🌐 Бэкенд подключен: ${val}` : "Используется текущий хост");
-        this.checkAuthAndSync();
-        this.loadWave(this.waveMode, false);
-      });
-    }
-
-    const btn5a7a = document.getElementById("setBackend5a7a");
-    if (btn5a7a) {
-      btn5a7a.addEventListener("click", () => {
-        const target = "https://musik-5a7a.onrender.com";
-        this.apiBase = target;
-        if (!this.backendList.includes(target)) this.backendList.unshift(target);
-        this.currentBackendIndex = this.backendList.indexOf(target);
-        if (this.dom.apiBackendInput) this.dom.apiBackendInput.value = target;
-        localStorage.setItem("musik_api_backend", target);
-        this.showToast("🟢 Выбран основной сервер musik-5a7a");
-        this.checkAuthAndSync();
-        this.loadWave(this.waveMode, false);
-      });
-    }
-
-    const btnNpzp = document.getElementById("setBackendNpzp");
-    if (btnNpzp) {
-      btnNpzp.addEventListener("click", () => {
-        const target = "https://musik-npzp.onrender.com";
-        this.apiBase = target;
-        if (!this.backendList.includes(target)) this.backendList.push(target);
-        this.currentBackendIndex = this.backendList.indexOf(target);
-        if (this.dom.apiBackendInput) this.dom.apiBackendInput.value = target;
-        localStorage.setItem("musik_api_backend", target);
-        this.showToast("🟡 Выбран сервер musik-npzp");
-        this.checkAuthAndSync();
-        this.loadWave(this.waveMode, false);
-      });
-    }
+    this.updateBackendStatusUI();
     if (this.dom.saveSettingsCloseBtn) {
       this.dom.saveSettingsCloseBtn.addEventListener("click", () => this.closeSettingsModal());
     }
@@ -2815,9 +2863,11 @@ class MusikApp {
       await this.updateOfflineStats();
     }
 
+    this.updateBackendStatusUI();
+
     // Check yandex token
     try {
-      const res = await fetch("/api/settings/yandex-token");
+      const res = await this.fetchApi("/api/settings/yandex-token");
       const data = await res.json();
       if (data.has_token && this.dom.yandexTokenInput) {
         this.dom.yandexTokenInput.placeholder = "Токен Яндекс.Музыки сохранён (введите новый для замены)";
