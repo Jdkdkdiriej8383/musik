@@ -7,6 +7,9 @@
 class MusikApp {
   constructor() {
     this.audio = document.getElementById("audioElement");
+    // Background preloader audio element for instant zero-latency transitions
+    this.preloaderAudio = new Audio();
+    this.preloaderAudio.preload = "auto";
 
     // Auth & User State
     this.token = localStorage.getItem("musik_token") || null;
@@ -1704,6 +1707,13 @@ class MusikApp {
     // Preload next 5 tracks for seamless transitions and offline tolerance
     this.preloadUpcomingTracks(5);
     this.updateBufferStatus();
+
+    // Pre-buffer next track in secondary audio element for instantaneous transition
+    const nextTrack = (this.queue && this.queue[this.queueIndex + 1]) || (this.waveQueue && this.waveQueue[this.waveIndex + 1]);
+    if (nextTrack && this.preloaderAudio) {
+      const nextStreamUrl = this.api(`/api/stream?title=${encodeURIComponent(nextTrack.title)}&artist=${encodeURIComponent(nextTrack.artist)}`);
+      this.preloaderAudio.src = nextStreamUrl;
+    }
 
     // Wave continuous refill check: if only 2 tracks remain, fetch next chunk!
     if (this.isWaveActive && this.queueIndex >= this.queue.length - 2 && navigator.onLine) {

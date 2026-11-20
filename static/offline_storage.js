@@ -388,7 +388,10 @@ class OfflineStorage {
 
     const fetchPromise = (async () => {
       try {
-        const streamUrl = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+        const apiPath = `/api/stream?title=${encodeURIComponent(track.title)}&artist=${encodeURIComponent(track.artist)}`;
+        const streamUrl = (window.app && typeof window.app.api === 'function')
+          ? window.app.api(apiPath)
+          : apiPath;
         const controller = new AbortController();
         const signal = controller.signal;
 

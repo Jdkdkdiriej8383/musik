@@ -285,6 +285,17 @@ def init_db():
             updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
         );
         """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stream_cache (
+            query_key VARCHAR(255) PRIMARY KEY,
+            url TEXT NOT NULL,
+            headers TEXT,
+            title TEXT,
+            duration INTEGER,
+            source VARCHAR(50),
+            expires_at TIMESTAMPTZ
+        );
+        """)
     else:
         # SQLite
         cursor.execute("""
@@ -371,6 +382,17 @@ def init_db():
         CREATE TABLE IF NOT EXISTS settings (
             key TEXT PRIMARY KEY,
             value TEXT
+        );
+        """)
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS stream_cache (
+            query_key TEXT PRIMARY KEY,
+            url TEXT NOT NULL,
+            headers TEXT,
+            title TEXT,
+            duration INTEGER,
+            source TEXT,
+            expires_at TIMESTAMP
         );
         """)
 
@@ -882,6 +904,65 @@ def get_setting(key: str) -> Optional[str]:
         cursor.execute("SELECT value FROM settings WHERE key = ?", (key,))
         row = cursor.fetchone()
         return row["value"] if row else None
+    finally:
+        conn.close()
+
+
+def get_cached_stream(query_key: str) -> Optional[Dict[str, Any]]:
+    conn = get_db()
+    cursor = conn.cursor()
+    try:
+        now_str = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+        cursor.execute(
+            "SELECT url, headers, title, duration, source FROM stream_cache WHERE query_key = ? AND (expires_at IS NULL OR expires_at > ?)",
+            (query_key, now_str)
+        )
+        row = cursor.fetchone()
+        if not row:
+            return None
+        import json
+        headers = {}
+        if row["headers"]:
+            try:
+                headers = json.loads(row["headers"])
+            except Exception:
+                pass
+        return {
+            "url": row["url"],
+            "headers": headers,
+            "title": row["title"],
+            "duration": row["duration"] or 0,
+            "source": row["source"]
+        }
+    except Exception as e:
+        print(f"Error fetching cached stream: {e}")
+        return None
+    finally:
+        conn.close()
+
+
+def save_cached_stream(query_key: str, data: Dict[str, Any], ttl_seconds: int = 21600):
+    conn = get_db()
+    cursor = conn.cursor()
+    import json
+    from datetime import timedelta
+    expires_at = (datetime.utcnow() + timedelta(seconds=ttl_seconds)).strftime("%Y-%m-%d %H:%M:%S")
+    headers_str = json.dumps(data.get("headers") or {})
+    try:
+        cursor.execute("""
+            INSERT INTO stream_cache (query_key, url, headers, title, duration, source, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(query_key) DO UPDATE SET
+                url = excluded.url,
+                headers = excluded.headers,
+                title = excluded.title,
+                duration = excluded.duration,
+                source = excluded.source,
+                expires_at = excluded.expires_at
+        """, (query_key, data["url"], headers_str, data.get("title"), data.get("duration", 0), data.get("source"), expires_at))
+        conn.commit()
+    except Exception as e:
+        print(f"Error saving stream cache: {e}")
     finally:
         conn.close()
 

@@ -198,6 +198,17 @@ async def record_history(payload: Dict[str, Any], user: Optional[Dict[str, Any]]
 # ==========================================
 # 3. PERSONAL WAVE ("МОЙ ПОТОК") ENGINE
 # ==========================================
+async def prewarm_tracks(tracks: List[Dict[str, Any]]):
+    for t in tracks:
+        try:
+            t_title = t.get("title")
+            t_artist = t.get("artist")
+            if t_title and t_artist:
+                await get_stream_info(t_title, t_artist)
+        except Exception:
+            pass
+
+
 @app.get("/api/stream/wave")
 async def get_stream_wave(
     mode: str = "default",
@@ -213,7 +224,11 @@ async def get_stream_wave(
     4. Falls back to curated trending + mood seeds if no likes.
     """
     user_id = user["id"] if user else None
-    return await recommendation.get_personalized_wave(user_id=user_id, mode=mode, limit=limit, country=country)
+    wave_data = await recommendation.get_personalized_wave(user_id=user_id, mode=mode, limit=limit, country=country)
+    if wave_data and "results" in wave_data and wave_data["results"]:
+        # Pre-warm stream resolution in background for zero-latency instant start
+        asyncio.create_task(prewarm_tracks(wave_data["results"][:3]))
+    return wave_data
 
 
 # ==========================================
@@ -442,7 +457,23 @@ def _try_yandex_music(artist: str, title: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+STREAM_HTTP_CLIENT: Optional[httpx.AsyncClient] = None
+
+def get_stream_client() -> httpx.AsyncClient:
+    global STREAM_HTTP_CLIENT
+    if STREAM_HTTP_CLIENT is None or STREAM_HTTP_CLIENT.is_closed:
+        limits = httpx.Limits(max_keepalive_connections=40, max_connections=80)
+        timeout = httpx.Timeout(connect=10.0, read=None, write=10.0, pool=30.0)
+        STREAM_HTTP_CLIENT = httpx.AsyncClient(timeout=timeout, limits=limits, follow_redirects=True)
+    return STREAM_HTTP_CLIENT
+
+
 def _extract_stream_sync(title: str, artist: str) -> Dict[str, Any]:
+    # 1. Fast check: Yandex Music (instant 0.2s direct stream if available)
+    ym_res = _try_yandex_music(artist, title)
+    if ym_res:
+        return ym_res
+
     query = f"{artist} - {title}".strip()
     cleaned_artist = clean_search_term(artist)
     cleaned_title = clean_search_term(title)
@@ -454,27 +485,31 @@ def _extract_stream_sync(title: str, artist: str) -> Dict[str, Any]:
     trans_query = f"{trans_artist} - {trans_title}".strip()
 
     search_attempts = [
-        f"ytsearch1:{query} audio",
-        f"ytsearch1:{query}",
         f"ytsearch1:{cleaned_query} audio",
-        f"ytsearch1:{cleaned_query}",
-        f"ytsearch1:{cleaned_artist} {cleaned_title} official",
-        f"ytsearch1:{cleaned_artist} {cleaned_title} spotify",
+        f"ytsearch1:{query}",
+        f"ytsearch1:{cleaned_artist} {cleaned_title}",
     ]
     if trans_query != cleaned_query and trans_query:
         search_attempts.append(f"ytsearch1:{trans_query} audio")
-        search_attempts.append(f"ytsearch1:{trans_query}")
 
+    # Ultra-fast extractor configuration with android player client
     ydl_opts = {
-        "format": "bestaudio/best",
+        "format": "ba/b[acodec!=none]/best",
         "noplaylist": True,
         "quiet": True,
         "no_warnings": True,
         "extract_flat": False,
         "skip_download": True,
+        "extractor_args": {
+            "youtube": {
+                "player_client": ["android", "web"],
+                "player_skip": ["configs", "webpage"],
+            }
+        },
+        "socket_timeout": 5,
     }
 
-    # 1. Primary: YouTube Music & YouTube with Spotify hints
+    # 2. YouTube Music / YouTube with optimized fast extraction
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         for sa in search_attempts:
             try:
@@ -491,15 +526,10 @@ def _extract_stream_sync(title: str, artist: str) -> Dict[str, Any]:
             except Exception:
                 continue
 
-    # 2. Secondary: Yandex Music fallback (without token or with token)
-    ym_res = _try_yandex_music(artist, title)
-    if ym_res:
-        return ym_res
-
-    # 3. Tertiary: SoundCloud
+    # 3. Tertiary fallback: SoundCloud
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            for sc_term in [f"scsearch1:{cleaned_query}", f"scsearch1:{trans_query}", f"scsearch1:{query}"]:
+            for sc_term in [f"scsearch1:{cleaned_query}", f"scsearch1:{query}"]:
                 try:
                     sc_info = ydl.extract_info(sc_term, download=False)
                     if sc_info and "entries" in sc_info and sc_info["entries"]:
@@ -516,7 +546,7 @@ def _extract_stream_sync(title: str, artist: str) -> Dict[str, Any]:
     except Exception:
         pass
 
-    raise Exception(f"Не удалось найти аудиодорожку ни на YouTube Music, ни на Яндекс.Музыке/Spotify: {query}")
+    raise Exception(f"Не удалось найти аудиодорожку: {query}")
 
 
 async def get_stream_info(title: str, artist: str) -> Dict[str, Any]:
@@ -524,12 +554,27 @@ async def get_stream_info(title: str, artist: str) -> Dict[str, Any]:
     if query_key in STREAM_CACHE:
         return STREAM_CACHE[query_key]
 
+    # Check persistent database cache (instant 0.005s lookup)
+    cached_db = db.get_cached_stream(query_key)
+    if cached_db:
+        STREAM_CACHE[query_key] = cached_db
+        return cached_db
+
     async with resolve_lock:
         if query_key in STREAM_CACHE:
             return STREAM_CACHE[query_key]
+        cached_db = db.get_cached_stream(query_key)
+        if cached_db:
+            STREAM_CACHE[query_key] = cached_db
+            return cached_db
+
         loop = asyncio.get_running_loop()
         stream_data = await loop.run_in_executor(None, _extract_stream_sync, title, artist)
         STREAM_CACHE[query_key] = stream_data
+        try:
+            db.save_cached_stream(query_key, stream_data)
+        except Exception as e:
+            print(f"Failed to persist stream cache: {e}")
         return stream_data
 
 
@@ -560,14 +605,11 @@ async def stream_audio(title: str, artist: str, request: Request):
     if client_range:
         upstream_headers["range"] = client_range
 
-    # Use infinite read timeout so long pauses or scrubbing never trigger ReadTimeout
-    client_timeout = httpx.Timeout(connect=15.0, read=None, write=15.0, pool=None)
-    client = httpx.AsyncClient(timeout=client_timeout)
+    client = get_stream_client()
     try:
         req = client.build_request("GET", stream_url, headers=upstream_headers)
         upstream_resp = await client.send(req, stream=True)
     except Exception as e:
-        await client.aclose()
         raise HTTPException(status_code=502, detail=f"Upstream stream connection error: {str(e)}")
 
     forward_headers = {}
@@ -578,16 +620,19 @@ async def stream_audio(title: str, artist: str, request: Request):
     if "accept-ranges" not in forward_headers:
         forward_headers["accept-ranges"] = "bytes"
 
+    # Aggressive caching headers for browser audio player
+    forward_headers["Cache-Control"] = "public, max-age=86400"
+
     async def aiter_chunks():
         try:
-            async for chunk in upstream_resp.aiter_bytes(chunk_size=65536):
+            first = True
+            async for chunk in upstream_resp.aiter_bytes(chunk_size=32768 if first else 65536):
                 yield chunk
+                first = False
         except (httpx.HTTPError, asyncio.CancelledError):
-            # Client disconnected, skipped track, or stream closed
             pass
         finally:
             await upstream_resp.aclose()
-            await client.aclose()
 
     return StreamingResponse(
         aiter_chunks(),
